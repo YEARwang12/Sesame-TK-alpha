@@ -62,10 +62,10 @@ jobs:
         uses: ilharp/sign-android-release@v2
         with:
           releaseDir: app/build/outputs/apk/all
-          signingKey: ${{ secrets.ANDROID_SIGNING_KEY }}
-          keyAlias: ${{ secrets.ANDROID_KEY_ALIAS }}
-          keyStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          signingKey: ${{ SAME }}
+          keyAlias: ${{ SAME }}
+          keyStorePassword: ${{ SAME_PASSWORD }}
+          keyPassword: ${{ SAME_PASSWORD }}
           buildToolsVersion: 36.0.0
 
       - name: Extract Signed APK Paths
