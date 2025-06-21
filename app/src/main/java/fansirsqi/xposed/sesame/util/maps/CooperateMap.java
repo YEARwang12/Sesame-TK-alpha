@@ -1,4 +1,4 @@
-package fansirsqi.xposed.sesame.util.Maps;
+package fansirsqi.xposed.sesame.util.maps;
 /**
  * 合种ID映射工具类。
  */

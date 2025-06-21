@@ -5,10 +5,10 @@ import java.util.HashMap;
 import java.util.Map;
 import fansirsqi.xposed.sesame.entity.VitalityStore.ExchangeStatus;
 import fansirsqi.xposed.sesame.util.Log;
-import fansirsqi.xposed.sesame.util.Maps.IdMapManager;
-import fansirsqi.xposed.sesame.util.Maps.UserMap;
-import fansirsqi.xposed.sesame.util.Maps.VitalityRewardsMap;
-import fansirsqi.xposed.sesame.util.ResUtil;
+import fansirsqi.xposed.sesame.util.maps.IdMapManager;
+import fansirsqi.xposed.sesame.util.maps.UserMap;
+import fansirsqi.xposed.sesame.util.maps.VitalityRewardsMap;
+import fansirsqi.xposed.sesame.util.ResChecker;
 import fansirsqi.xposed.sesame.data.Status;
 /**
  * @author Byseven
@@ -22,7 +22,7 @@ public class Vitality {
         JSONArray itemInfoVOList = null;
         try {
             JSONObject jo = new JSONObject(AntForestRpcCall.itemList(labelType));
-            if (ResUtil.checkSuccess(TAG, jo)) {
+            if (ResChecker.checkRes( jo)) {
                 itemInfoVOList = jo.optJSONArray("itemInfoVOList");
             }
         } catch (Throwable th) {
@@ -34,7 +34,7 @@ public class Vitality {
     public static void ItemDetailBySpuId(String spuId) {
         try {
             JSONObject jo = new JSONObject(AntForestRpcCall.itemDetail(spuId));
-            if (ResUtil.checkSuccess(TAG, jo)) {
+            if (ResChecker.checkRes( jo)) {
                 JSONObject ItemDetail = jo.getJSONObject("spuItemInfoVO");
                 handleItemDetail(ItemDetail);
             }
@@ -100,6 +100,7 @@ public class Vitality {
             Log.printStackTrace(TAG, th);
         }
     }
+
     /*
      * 兑换活力值商品
      * sku
@@ -112,7 +113,7 @@ public class Vitality {
         }
         JSONObject sku = skuInfo.get(skuId);
         if (sku == null) {
-            Log.record("活力兑换🍃找不到要兑换的权益！");
+            Log.record(TAG,"活力兑换🍃找不到要兑换的权益！");
             return false;
         }
         try {
@@ -122,7 +123,7 @@ public class Vitality {
                 String itemStatus = itemStatusList.getString(i);
                 ExchangeStatus Status = ExchangeStatus.valueOf(itemStatus);
                 if (Status.name().equals(itemStatus) || Status.name().equals(itemStatus) || Status.name().equals(itemStatus)) {
-                    Log.record("活力兑换🍃[" + skuName + "]停止:" + Status.getNickName());
+                    Log.record(TAG,"活力兑换🍃[" + skuName + "]停止:" + Status.getNickName());
                     if (ExchangeStatus.REACH_LIMIT.name().equals(itemStatus)) {
                         fansirsqi.xposed.sesame.data.Status.setFlagToday("forest::VitalityExchangeLimit::" + skuId);
                         Log.forest("活力兑换🍃[" + skuName + "]已达上限,停止兑换！");
@@ -161,7 +162,7 @@ public class Vitality {
     private static Boolean VitalityExchange(String spuId, String skuId) {
         try {
             JSONObject jo = new JSONObject(AntForestRpcCall.exchangeBenefit(spuId, skuId));
-            return ResUtil.checkResultCode(TAG, jo);
+            return ResChecker.checkRes(TAG, jo);
         } catch (Throwable th) {
             Log.runtime(TAG, "VitalityExchange err:" + spuId + "," + skuId);
             Log.printStackTrace(TAG, th);

@@ -1,4 +1,4 @@
-package fansirsqi.xposed.sesame.util.Maps;
+package fansirsqi.xposed.sesame.util.maps;
 public class ReserveaMap extends IdMapManager {
     @Override
     public String thisFileName() {

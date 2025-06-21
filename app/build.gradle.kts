@@ -5,8 +5,12 @@ import java.util.*
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
 }
-
+tasks.register("testClasses") {
+    description = "Dummy task for compatibility"
+    group = "Verification"
+}
 android {
     namespace = "fansirsqi.xposed.sesame"
     compileSdk = 36
@@ -26,10 +30,10 @@ android {
         // 版本配置
         val major = 0
         val minor = 2
-        val patch = 5
-        val buildTag = "beta7"
+        val patch = 6
+        val buildTag = "alpha"
         
-        val buildDate = SimpleDateFormat("yy-MM-dd", Locale.CHINA).apply {
+        val buildDate = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA).apply {
             timeZone = TimeZone.getTimeZone("GMT+8")
         }.format(Date())
         
@@ -38,10 +42,7 @@ android {
         }.format(Date())
         
         val buildTargetCode = try {
-            MessageDigest.getInstance("MD5")
-                .digest(buildTime.toByteArray())
-                .joinToString("") { "%02x".format(it) }
-                .substring(0, 4)
+            buildDate.replace("-",".")+"."+buildTime.replace(":",".")
         } catch (_: Exception) {
             "0000"
         }
@@ -86,7 +87,9 @@ android {
 
     buildFeatures {
         buildConfig = true
+        compose = true
     }
+
 
     flavorDimensions += "default"
     productFlavors {
@@ -99,25 +102,40 @@ android {
             extra.set("applicationType", "Compatible")
         }
     }
+    compileOptions {
+        // 全局默认设置
+        isCoreLibraryDesugaringEnabled = true // 启用脱糖
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    kotlin {
+        compilerOptions {
+            jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+        }
+    }
 
     productFlavors.all {
         when (name) {
             "normal" -> {
                 compileOptions {
-                    sourceCompatibility = JavaVersion.VERSION_23
-                    targetCompatibility = JavaVersion.VERSION_23
+                    sourceCompatibility = JavaVersion.VERSION_17
+                    targetCompatibility = JavaVersion.VERSION_17
                 }
-                kotlinOptions {
-                    jvmTarget = "23"
+                kotlin {
+                    compilerOptions {
+                        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+                    }
                 }
             }
             "compatible" -> {
                 compileOptions {
-                    sourceCompatibility = JavaVersion.VERSION_17
-                    targetCompatibility = JavaVersion.VERSION_17
+                    sourceCompatibility = JavaVersion.VERSION_11
+                    targetCompatibility = JavaVersion.VERSION_11
                 }
-                kotlinOptions {
-                    jvmTarget = "17"
+                kotlin {
+                    compilerOptions {
+                        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11
+                    }
                 }
             }
         }
@@ -151,11 +169,11 @@ android {
             jniLibs.srcDirs("src/main/jniLibs")
         }
     }
-
-    if (!System.getenv("CI").toBoolean()) {
+    val cmakeFile = file("src/main/cpp/CMakeLists.txt")
+    if (!System.getenv("CI").toBoolean() && cmakeFile.exists()) {
         externalNativeBuild {
             cmake {
-                path = file("src/main/cpp/CMakeLists.txt")
+                path = cmakeFile
                 version = "3.31.6"
                 ndkVersion = "29.0.13113456"
             }
@@ -166,13 +184,33 @@ android {
         val variant = this
         variant.outputs.all {
             val flavorName = variant.flavorName.replaceFirstChar { it.uppercase() }
-            val fileName = "Sesame-$flavorName-${variant.versionName}.apk"
+            val fileName = "Sesame-TK-$flavorName-${variant.versionName}.apk"
             (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName = fileName
         }
     }
 }
 
 dependencies {
+    implementation(libs.ui.tooling.preview.android)
+    val composeBom = platform("androidx.compose:compose-bom:2025.05.00")
+    implementation(composeBom)
+    testImplementation(composeBom)
+    androidTestImplementation(composeBom)
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    debugImplementation("androidx.compose.ui:ui-tooling")
+
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.5")
+
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
+
+    implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.6.2")
+    implementation("androidx.compose.runtime:runtime-livedata")
+
+    implementation (libs.androidx.constraintlayout)
+
+    implementation(libs.activity.compose)
+
     implementation(libs.core.ktx)
     implementation(libs.kotlin.stdlib)
     implementation(libs.slf4j.api)
@@ -186,6 +224,9 @@ dependencies {
     compileOnly(libs.lombok)
     annotationProcessor(libs.lombok)
     implementation(libs.okhttp)
+    implementation(libs.dexkit)
+
+    coreLibraryDesugaring(libs.desugar)
 
     add("normalImplementation", libs.jackson.core)
     add("normalImplementation", libs.jackson.databind)

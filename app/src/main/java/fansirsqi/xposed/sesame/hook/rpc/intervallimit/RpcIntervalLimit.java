@@ -2,13 +2,16 @@ package fansirsqi.xposed.sesame.hook.rpc.intervallimit;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+
+import fansirsqi.xposed.sesame.util.GlobalThreadPools;
 import fansirsqi.xposed.sesame.util.Log;
-import fansirsqi.xposed.sesame.util.ThreadUtil;
+
 /**
  * RpcIntervalLimit类用于管理不同方法的调用间隔限制，确保调用间隔不小于设定值。
  * 提供添加、更新、进入间隔限制以及清除限制的功能。
  */
 public class RpcIntervalLimit {
+    private static final String TAG = "RpcIntervalLimit";
     // 默认的间隔限制设置为50毫秒
     private static final IntervalLimit DEFAULT_INTERVAL_LIMIT = new DefaultIntervalLimit(500);
     // 存储各方法的间隔限制，使用线程安全的ConcurrentHashMap
@@ -32,7 +35,7 @@ public class RpcIntervalLimit {
         {
             synchronized (intervalLimitMap) {
                 if (intervalLimitMap.containsKey(method)) {
-                    Log.runtime("方法：" + method + " 间隔限制已存在");
+                    Log.runtime(TAG,"方法：" + method + " 间隔限制已存在");
                     throw new IllegalArgumentException("方法：" + method + " 间隔限制已存在");
                 }
                 intervalLimitMap.put(method, intervalLimit);
@@ -68,7 +71,7 @@ public class RpcIntervalLimit {
         synchronized (Objects.requireNonNull(intervalLimit, "间隔限制对象不能为空")) {
             long sleep = intervalLimit.getInterval() - (System.currentTimeMillis() - intervalLimit.getTime());
             if (sleep > 0) {
-                ThreadUtil.sleep(sleep);
+                GlobalThreadPools.sleep(sleep);
             }
             intervalLimit.setTime(System.currentTimeMillis());
         }
