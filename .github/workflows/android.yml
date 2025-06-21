@@ -54,19 +54,7 @@ jobs:
       - name: Copy APKs to staging for signing
         run: |
           mkdir -p app/build/outputs/apk/all
-          cp "${{ steps.locate_apks.outputs.normal_apk }}" app/build/outputs/apk/all/
-          cp "${{ steps.locate_apks.outputs.compatible_apk }}" app/build/outputs/apk/all/
-
-      - name: Sign APKs
-        id: sign_apks
-        uses: ilharp/sign-android-release@v2
-        with:
-          releaseDir: app/build/outputs/apk/all
-          signingKey: ${{ SAME }}
-          keyAlias: ${{ SAME }}
-          keyStorePassword: ${{ SAME_PASSWORD }}
-          keyPassword: ${{ SAME_PASSWORD }}
-          buildToolsVersion: 36.0.0
+          cp "${{ steps.locate_apks.outputs.normal_apk }}" app/build/outputs/apk/all/ 
 
       - name: Extract Signed APK Paths
         id: extract_apks
