@@ -1,7 +1,8 @@
-package fansirsqi.xposed.sesame.util.Maps;
+package fansirsqi.xposed.sesame.util.maps;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 
+import java.io.File;
 import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.Collections;
@@ -76,7 +77,7 @@ public class UserMap {
                 // 获取类加载器
                 loader = ApplicationHook.getClassLoader();
             } catch (Exception e) {
-                Log.runtime("Error getting classloader");
+                Log.runtime(TAG,"Error getting classloader");
                 return;
             }
             try {
@@ -115,7 +116,7 @@ public class UserMap {
                             }
                             UserMap.add(userEntity);
                         } catch (Throwable t) {
-                            Log.runtime("addUserObject err:");
+                            Log.runtime(TAG,"addUserObject err:");
                             Log.printStackTrace(t);
                         }
                     }
@@ -124,7 +125,7 @@ public class UserMap {
                 }
                 UserMap.save(selfId);
             } catch (Throwable t) {
-                Log.runtime("checkUnknownId.run err:");
+                Log.runtime(TAG,"checkUnknownId.run err:");
                 Log.printStackTrace(t);
             }
         });
@@ -199,10 +200,19 @@ public class UserMap {
      */
     public static synchronized void load(String userId) {
         userMap.clear();
+        if (userId == null || userId.isEmpty()) {
+            Log.runtime(TAG, "Skip loading user map for empty userId");
+            return;
+        }
         try {
-            String body = Files.readFromFile(Files.getFriendIdMapFile(userId));
+            File friendIdMapFile = Files.getFriendIdMapFile(userId);
+            if (friendIdMapFile == null) {
+                Log.runtime(TAG, "Friend ID map file is null for userId: " + userId);
+                return;
+            }
+            String body = Files.readFromFile(friendIdMapFile);
             if (!body.isEmpty()) {
-                Map<String, UserEntity.UserDto> dtoMap = JsonUtil.parseObject(body, new TypeReference<Map<String, UserEntity.UserDto>>() {
+                Map<String, UserEntity.UserDto> dtoMap = JsonUtil.parseObject(body, new TypeReference<>() {
                 });
                 for (UserEntity.UserDto dto : dtoMap.values()) {
                     userMap.put(dto.getUserId(), dto.toEntity());
@@ -237,7 +247,7 @@ public class UserMap {
         try {
             String body = Files.readFromFile(Files.getSelfIdFile(userId));
             if (!body.isEmpty()) {
-                UserEntity.UserDto dto = JsonUtil.parseObject(body, new TypeReference<UserEntity.UserDto>() {
+                UserEntity.UserDto dto = JsonUtil.parseObject(body, new TypeReference<>() {
                 });
                 userMap.put(dto.getUserId(), dto.toEntity());
             }

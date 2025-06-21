@@ -12,7 +12,6 @@ import android.widget.Toast;
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewpager2.widget.ViewPager2;
@@ -31,15 +30,19 @@ import fansirsqi.xposed.sesame.model.ModelConfig;
 import fansirsqi.xposed.sesame.model.SelectModelFieldFunc;
 import fansirsqi.xposed.sesame.task.ModelTask;
 import fansirsqi.xposed.sesame.ui.widget.ContentPagerAdapter;
+import fansirsqi.xposed.sesame.ui.widget.ListDialog;
 import fansirsqi.xposed.sesame.ui.widget.TabAdapter;
 import fansirsqi.xposed.sesame.util.Files;
 import fansirsqi.xposed.sesame.util.LanguageUtil;
 import fansirsqi.xposed.sesame.util.Log;
-import fansirsqi.xposed.sesame.util.Maps.BeachMap;
-import fansirsqi.xposed.sesame.util.Maps.CooperateMap;
-import fansirsqi.xposed.sesame.util.Maps.IdMapManager;
-import fansirsqi.xposed.sesame.util.Maps.ReserveaMap;
-import fansirsqi.xposed.sesame.util.Maps.UserMap;
+import fansirsqi.xposed.sesame.util.maps.BeachMap;
+import fansirsqi.xposed.sesame.util.maps.CooperateMap;
+import fansirsqi.xposed.sesame.util.maps.IdMapManager;
+import fansirsqi.xposed.sesame.util.maps.MemberBenefitsMap;
+import fansirsqi.xposed.sesame.util.maps.ParadiseCoinBenefitIdMap;
+import fansirsqi.xposed.sesame.util.maps.ReserveaMap;
+import fansirsqi.xposed.sesame.util.maps.UserMap;
+import fansirsqi.xposed.sesame.util.maps.VitalityRewardsMap;
 import fansirsqi.xposed.sesame.util.PortUtil;
 import fansirsqi.xposed.sesame.util.StringUtil;
 import fansirsqi.xposed.sesame.util.ToastUtil;
@@ -61,12 +64,16 @@ public class SettingActivity extends BaseActivity {
         if (intent != null) {
             this.userId = intent.getStringExtra("userId");
             this.userName = intent.getStringExtra("userName");
+
         }
         // 初始化各种配置数据
         Model.initAllModel();
         UserMap.setCurrentUserId(this.userId);
         UserMap.load(this.userId);
         CooperateMap.getInstance(CooperateMap.class).load(this.userId);
+        IdMapManager.getInstance(VitalityRewardsMap.class).load(this.userId);
+        IdMapManager.getInstance(MemberBenefitsMap.class).load(this.userId);
+        IdMapManager.getInstance(ParadiseCoinBenefitIdMap.class).load(this.userId);
         IdMapManager.getInstance(ReserveaMap.class).load();
         IdMapManager.getInstance(BeachMap.class).load();
         Config.load(this.userId);
@@ -103,7 +110,6 @@ public class SettingActivity extends BaseActivity {
         if (this.userName != null) {
             setBaseSubtitle(getString(R.string.settings) + ": " + this.userName);
         }
-        setBaseSubtitleTextColor(ContextCompat.getColor(this, R.color.textColorPrimary));
         initializeTabs();
     }
 
@@ -146,6 +152,7 @@ public class SettingActivity extends BaseActivity {
         menu.add(0, 3, 3, "删除配置");
         menu.add(0, 4, 4, "单向好友");
         menu.add(0, 5, 5, "切换WEBUI");
+        menu.add(0, 6, 6, "保存");
         return super.onCreateOptionsMenu(menu);
     }
 
@@ -203,6 +210,9 @@ public class SettingActivity extends BaseActivity {
                 } else {
                     ToastUtil.makeText(this, "切换失败", Toast.LENGTH_SHORT).show();
                 }
+                break;
+            case 6:
+                save();
                 break;
         }
         return super.onOptionsItemSelected(item);

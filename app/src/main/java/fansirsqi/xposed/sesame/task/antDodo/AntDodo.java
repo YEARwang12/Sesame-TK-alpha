@@ -13,11 +13,11 @@ import fansirsqi.xposed.sesame.model.modelFieldExt.ChoiceModelField;
 import fansirsqi.xposed.sesame.model.modelFieldExt.SelectModelField;
 import fansirsqi.xposed.sesame.task.ModelTask;
 import fansirsqi.xposed.sesame.task.TaskCommon;
-import fansirsqi.xposed.sesame.task.antFarm.AntFarm.TaskStatus;
+import fansirsqi.xposed.sesame.task.TaskStatus;
+import fansirsqi.xposed.sesame.util.GlobalThreadPools;
 import fansirsqi.xposed.sesame.util.Log;
-import fansirsqi.xposed.sesame.util.Maps.UserMap;
-import fansirsqi.xposed.sesame.util.ResUtil;
-import fansirsqi.xposed.sesame.util.ThreadUtil;
+import fansirsqi.xposed.sesame.util.maps.UserMap;
+import fansirsqi.xposed.sesame.util.ResChecker;
 import fansirsqi.xposed.sesame.util.TimeUtil;
 public class AntDodo extends ModelTask {
     private static final String TAG = AntDodo.class.getSimpleName();
@@ -59,10 +59,10 @@ public class AntDodo extends ModelTask {
     @Override
     public Boolean check() {
         if (TaskCommon.IS_ENERGY_TIME){
-            Log.record("⏸ 当前为只收能量时间【"+ BaseModel.getEnergyTime().getValue() +"】，停止执行" + getName() + "任务！");
+            Log.record(TAG,"⏸ 当前为只收能量时间【"+ BaseModel.getEnergyTime().getValue() +"】，停止执行" + getName() + "任务！");
             return false;
         }else if (TaskCommon.IS_MODULE_SLEEP_TIME) {
-            Log.record("💤 模块休眠时间【"+ BaseModel.getModelSleepTime().getValue() +"】停止执行" + getName() + "任务！");
+            Log.record(TAG,"💤 模块休眠时间【"+ BaseModel.getModelSleepTime().getValue() +"】停止执行" + getName() + "任务！");
             return false;
         } else {
             return true;
@@ -71,7 +71,7 @@ public class AntDodo extends ModelTask {
     @Override
     public void run() {
         try {
-            Log.record("执行开始-" + getName());
+            Log.record(TAG,"执行开始-" + getName());
             receiveTaskAward();
             propList();
             collect();
@@ -85,7 +85,7 @@ public class AntDodo extends ModelTask {
             Log.runtime(TAG, "start.run err:");
             Log.printStackTrace(TAG, t);
         }finally {
-            Log.record("执行结束-" + getName());
+            Log.record(TAG,"执行结束-" + getName());
         }
     }
     /*
@@ -104,10 +104,10 @@ public class AntDodo extends ModelTask {
     private void collect() {
         try {
             JSONObject jo = new JSONObject(AntDodoRpcCall.queryAnimalStatus());
-            if (ResUtil.checkResultCode(jo)) {
+            if (ResChecker.checkRes(jo)) {
                 JSONObject data = jo.getJSONObject("data");
                 if (data.getBoolean("collect")) {
-                    Log.record("神奇物种卡片今日收集完成！");
+                    Log.record(TAG,"神奇物种卡片今日收集完成！");
                 } else {
                     collectAnimalCard();
                 }
@@ -122,7 +122,7 @@ public class AntDodo extends ModelTask {
     private void collectAnimalCard() {
         try {
             JSONObject jo = new JSONObject(AntDodoRpcCall.homePage());
-            if (ResUtil.checkResultCode(jo)) {
+            if (ResChecker.checkRes(jo)) {
                 JSONObject data = jo.getJSONObject("data");
                 JSONObject animalBook = data.getJSONObject("animalBook");
                 String bookId = animalBook.getString("bookId");
@@ -144,7 +144,7 @@ public class AntDodo extends ModelTask {
                     int leftFreeQuota = jo.getInt("leftFreeQuota");
                     for (int j = 0; j < leftFreeQuota; j++) {
                         jo = new JSONObject(AntDodoRpcCall.collect());
-                        if (ResUtil.checkResultCode(jo)) {
+                        if (ResChecker.checkRes(jo)) {
                             data = jo.getJSONObject("data");
                             JSONObject animal = data.getJSONObject("animal");
                             String ecosystem = animal.getString("ecosystem");
@@ -192,7 +192,7 @@ public class AntDodo extends ModelTask {
                 String response = AntDodoRpcCall.taskList(); // 调用任务列表接口
                 JSONObject jsonResponse = new JSONObject(response); // 解析响应为 JSON 对象
                 // 检查响应结果码是否成功
-                if (ResUtil.checkResultCode(jsonResponse)) {
+                if (ResChecker.checkRes(jsonResponse)) {
                     // 获取任务组信息列表
                     JSONArray taskGroupInfoList = jsonResponse.getJSONObject("data").optJSONArray("taskGroupInfoList");
                     if (taskGroupInfoList == null) return; // 如果任务组为空则返回
@@ -217,7 +217,7 @@ public class AntDodo extends ModelTask {
                                 if (joAward.optBoolean("success")) {
                                     Log.forest("任务奖励🎖️[" + taskTitle + "]#" + awardCount + "个");
                                 } else {
-                                    Log.record("领取失败，" + response); // 记录领取失败信息
+                                    Log.record(TAG,"领取失败，" + response); // 记录领取失败信息
                                 }
                                 Log.runtime(joAward.toString()); // 打印奖励响应
                             }
@@ -231,7 +231,7 @@ public class AntDodo extends ModelTask {
                                         Log.forest("物种任务🧾️[" + taskTitle + "]");
                                         continue th; // 成功完成任务，返回外层循环
                                     } else {
-                                        Log.record("完成任务失败，" + taskTitle); // 记录完成任务失败信息
+                                        Log.record(TAG,"完成任务失败，" + taskTitle); // 记录完成任务失败信息
                                     }
                                 }
                             }
@@ -253,7 +253,7 @@ public class AntDodo extends ModelTask {
             th:
             do {
                 JSONObject jo = new JSONObject(AntDodoRpcCall.propList());
-                if (ResUtil.checkResultCode(jo)) {
+                if (ResChecker.checkRes(jo)) {
                     JSONArray propList = jo.getJSONObject("data").optJSONArray("propList");
                     if (propList == null) {
                         return;
@@ -270,8 +270,8 @@ public class AntDodo extends ModelTask {
                         String propName = prop.getJSONObject("propConfig").getString("propName");
                         int holdsNum = prop.optInt("holdsNum", 0);
                         jo = new JSONObject(AntDodoRpcCall.consumeProp(propId, propType));
-                        ThreadUtil.sleep(300);
-                        if (!ResUtil.checkResultCode(jo)) {
+                        GlobalThreadPools.sleep(300);
+                        if (!ResChecker.checkRes(jo)) {
                             Log.record(jo.getString("resultDesc"));
                             Log.runtime(jo.toString());
                             continue;
@@ -330,7 +330,7 @@ public class AntDodo extends ModelTask {
     private void sendAntDodoCard(String bookId, String targetUser) {
         try {
             JSONObject jo = new JSONObject(AntDodoRpcCall.queryBookInfo(bookId));
-            if (ResUtil.checkResultCode(jo)) {
+            if (ResChecker.checkRes(jo)) {
                 JSONArray animalForUserList = jo.getJSONObject("data").optJSONArray("animalForUserList");
                 for (int i = 0; i < Objects.requireNonNull(animalForUserList).length(); i++) {
                     JSONObject animalForUser = animalForUserList.getJSONObject(i);
@@ -340,7 +340,7 @@ public class AntDodo extends ModelTask {
                     JSONObject animal = animalForUser.getJSONObject("animal");
                     for (int j = 0; j < count; j++) {
                         sendCard(animal, targetUser);
-                        ThreadUtil.sleep(500L);
+                        GlobalThreadPools.sleep(500L);
                     }
                 }
             }
@@ -355,7 +355,7 @@ public class AntDodo extends ModelTask {
             String ecosystem = animal.getString("ecosystem");
             String name = animal.getString("name");
             JSONObject jo = new JSONObject(AntDodoRpcCall.social(animalId, targetUser));
-            if (ResUtil.checkResultCode(jo)) {
+            if (ResChecker.checkRes(jo)) {
                 Log.forest("赠送卡片🦕[" + UserMap.getMaskName(targetUser) + "]#" + ecosystem + "-" + name);
             } else {
                 Log.runtime(TAG, jo.getString("resultDesc"));
@@ -368,7 +368,7 @@ public class AntDodo extends ModelTask {
     private void collectToFriend() {
         try {
             JSONObject jo = new JSONObject(AntDodoRpcCall.queryFriend());
-            if (ResUtil.checkResultCode(jo)) {
+            if (ResChecker.checkRes(jo)) {
                 int count = 0;
                 JSONArray limitList = jo.getJSONObject("data").getJSONObject("extend").getJSONArray("limit");
                 for (int i = 0; i < limitList.length(); i++) {
@@ -396,7 +396,7 @@ public class AntDodo extends ModelTask {
                         continue;
                     }
                     jo = new JSONObject(AntDodoRpcCall.collect(useId));
-                    if (ResUtil.checkResultCode(jo)) {
+                    if (ResChecker.checkRes(jo)) {
                         String ecosystem = jo.getJSONObject("data").getJSONObject("animal").getString("ecosystem");
                         String name = jo.getJSONObject("data").getJSONObject("animal").getString("name");
                         String userName = UserMap.getMaskName(useId);
@@ -423,7 +423,7 @@ public class AntDodo extends ModelTask {
             int pageStart = 0;
             do {
                 JSONObject jo = new JSONObject(AntDodoRpcCall.queryBookList(9, pageStart));
-                if (!ResUtil.checkResultCode(TAG, jo)) {
+                if (!ResChecker.checkRes(TAG, jo)) {
                     break;
                 }
                 jo = jo.getJSONObject("data");
@@ -440,7 +440,7 @@ public class AntDodo extends ModelTask {
                     String bookId = animalBookResult.getString("bookId");
                     String ecosystem = animalBookResult.getString("ecosystem");
                     jo = new JSONObject(AntDodoRpcCall.generateBookMedal(bookId));
-                    if (!ResUtil.checkResultCode(TAG, jo)) {
+                    if (!ResChecker.checkRes(TAG, jo)) {
                         break;
                     }
                     Log.forest("神奇物种🦕合成勋章[" + ecosystem + "]");

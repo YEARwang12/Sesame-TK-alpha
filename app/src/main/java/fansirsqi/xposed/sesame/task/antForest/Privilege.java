@@ -14,6 +14,9 @@ import fansirsqi.xposed.sesame.data.Status;
 
 public class Privilege {
     private static final String TAG = Privilege.class.getSimpleName();
+
+    private static final String Flag = "youth_privilege_forest_received";
+    private static final String Flag2 = "youth_privilege_student_task";
     private static final String YOUTH_PRIVILEGE_PREFIX = "青春特权🌸";
     private static final String STUDENT_SIGN_PREFIX = "青春特权🧧";
 
@@ -35,8 +38,7 @@ public class Privilege {
 
     public static boolean youthPrivilege() {
         try {
-            if (!Status.canYouthPrivilegeToday()) return false;
-
+            if (Status.hasFlagToday(Flag)) return false;
             List<String> processResults = new ArrayList<>();
             for (List<String> task : YOUTH_TASKS) {
                 processResults.addAll(processYouthPrivilegeTask(task));
@@ -50,7 +52,7 @@ public class Privilege {
                 }
             }
 
-            if (allSuccess) Status.setYouthPrivilegeToday();
+            if (allSuccess) Status.setFlagToday(Flag);
             return allSuccess;
         } catch (Exception e) {
             Log.printStackTrace(TAG + "青春特权领取异常", e);
@@ -71,24 +73,27 @@ public class Privilege {
     private static JSONArray getTaskList(String queryParam) throws JSONException {
         String response = AntForestRpcCall.queryTaskListV2(queryParam);
         JSONObject result = new JSONObject(response);
-        return result.getJSONArray("forestTasksNew")
-                .getJSONObject(0)
-                .getJSONArray("taskInfoList");
+        return result.getJSONArray("forestTasksNew");
     }
 
     private static List<String> handleTaskList(JSONArray taskInfoList, String taskType, String taskName) {
         List<String> results = new ArrayList<>();
-        for (int i = 0; i < taskInfoList.length(); i++) {
-            JSONObject task = taskInfoList.optJSONObject(i);
-            if (task == null) continue;
-
-            JSONObject baseInfo = task.optJSONObject("taskBaseInfo");
-            if (baseInfo == null) continue;
-
-            String currentTaskType = baseInfo.optString("taskType");
-            if (!taskType.equals(currentTaskType)) continue;
-
-            processSingleTask(baseInfo, taskType, taskName, results);
+        try {
+            for (int i = 0; i < taskInfoList.length(); i++) {
+            JSONArray taskList = taskInfoList.getJSONObject(i).getJSONArray("taskInfoList");
+            for (int j = 0; j < taskList.length(); j++) {
+                JSONObject task = taskList.optJSONObject(j);
+                if (task == null) continue;
+                JSONObject baseInfo = task.optJSONObject("taskBaseInfo");
+                if (baseInfo == null) continue;
+                String currentTaskType = baseInfo.optString("taskType");
+                if (!taskType.equals(currentTaskType)) continue;
+                processSingleTask(baseInfo, taskType, taskName, results);
+            }
+            }
+        } catch (JSONException e) {
+            Log.printStackTrace(TAG + "任务列表解析失败", e);
+            results.add("处理异常");
         }
         return results;
     }
@@ -111,7 +116,7 @@ public class Privilege {
             String resultDesc = response.optString("desc");
             results.add(resultDesc);
             String logMessage = "处理成功".equals(resultDesc) ? "领取成功" : "领取结果：" + resultDesc;
-            Log.forest(YOUTH_PRIVILEGE_PREFIX + "["+taskName+"]" + logMessage);
+            Log.forest(YOUTH_PRIVILEGE_PREFIX + "[" + taskName + "]" + logMessage);
         } catch (JSONException e) {
             Log.printStackTrace(TAG + "奖励领取结果解析失败", e);
             results.add("处理异常");
@@ -125,7 +130,7 @@ public class Privilege {
                 return;
             }
 
-            if (!Status.canStudentTask()) {
+            if (Status.hasFlagToday(Flag2)) {
                 Log.record(STUDENT_SIGN_PREFIX + "今日已完成签到");
                 return;
             }
@@ -152,7 +157,7 @@ public class Privilege {
 
         JSONObject checkInInfo = result.optJSONObject("studentCheckInInfo");
         if (checkInInfo == null || "DO_TASK".equals(checkInInfo.optString("action"))) {
-            Status.setStudentTaskToday();
+            Status.setFlagToday(Flag2);
             return;
         }
 
@@ -167,7 +172,9 @@ public class Privilege {
             JSONObject result = new JSONObject(AntForestRpcCall.studentCheckin());
             handleSignInResult(result, tag);
         } catch (JSONException e) {
-            Log.printStackTrace(TAG + "签到结果解析失败", e);
+            Log.error(TAG, "学生签到失败：" + e.getMessage());
+            Log.printStackTrace(e);
+
         }
     }
 
@@ -176,7 +183,7 @@ public class Privilege {
         String resultDesc = result.optString("resultDesc", "签到成功");
 
         if (RPC_SUCCESS.equals(resultCode)) {
-            Status.setStudentTaskToday();
+            Status.setFlagToday(Flag2);
             String logMessage = STUDENT_SIGN_PREFIX + tag + resultDesc;
             Log.forest(logMessage);
         } else {

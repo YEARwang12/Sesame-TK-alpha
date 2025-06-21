@@ -2,8 +2,8 @@ package fansirsqi.xposed.sesame.hook.rpc.debug;
 import fansirsqi.xposed.sesame.hook.RequestManager;
 import fansirsqi.xposed.sesame.task.reserve.ReserveRpcCall;
 import fansirsqi.xposed.sesame.util.Log;
-import fansirsqi.xposed.sesame.util.ResUtil;
-import fansirsqi.xposed.sesame.util.ThreadUtil;
+import fansirsqi.xposed.sesame.util.ResChecker;
+import fansirsqi.xposed.sesame.util.GlobalThreadPools;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -66,7 +66,7 @@ public class DebugRpc {
         try {
             String s = ReserveRpcCall.queryTreeItemsForExchange();
             JSONObject jo = new JSONObject(s);
-            if (ResUtil.checkResultCode(jo)) {
+            if (ResChecker.checkRes(jo)) {
                 JSONArray ja = jo.getJSONArray("treeItems");
                 for (int i = 0; i < ja.length(); i++) {
                     jo = ja.getJSONObject(i);
@@ -95,7 +95,7 @@ public class DebugRpc {
             String response = ReserveRpcCall.queryTreeForExchange(projectId);
             JSONObject jo = new JSONObject(response);
             // 检查RPC调用结果码是否为"SUCCESS"，表示成功
-            if (ResUtil.checkResultCode(jo)) {
+            if (ResChecker.checkRes(jo)) {
                 // 获取可交换树木的信息
                 JSONObject exchangeableTree = jo.getJSONObject("exchangeableTree");
                 // 获取当前预算
@@ -113,7 +113,7 @@ public class DebugRpc {
                     tips = "可以合种-合种类型：" + coexchangeTypeIdList;
                 }
                 // 记录查询结果
-                Log.debug("新树上苗🌱[" + region + "-" + treeName + "]#" + currentBudget + "株-" + tips);
+                Log.debug(TAG,"新树上苗🌱[" + region + "-" + treeName + "]#" + currentBudget + "株-" + tips);
             } else {
                 // 如果RPC调用失败，记录错误描述和项目ID
                 // 注意：这里应该记录projectId而不是s（响应字符串）
@@ -138,7 +138,7 @@ public class DebugRpc {
             String response = ReserveRpcCall.queryTreeItemsForExchange();
             JSONObject jo = new JSONObject(response);
             // 检查RPC调用结果码是否为"SUCCESS"，表示成功
-            if (ResUtil.checkResultCode(jo)) {
+            if (ResChecker.checkRes(jo)) {
                 // 获取树木项目列表
                 JSONArray ja = jo.getJSONArray("treeItems");
                 // 遍历项目列表
@@ -155,7 +155,7 @@ public class DebugRpc {
                     // 对当前项目查询当前预算
                     getTreeCurrentBudget(projectId, itemName);
                     // 在查询每个项目后暂停100毫秒
-                    ThreadUtil.sleep(100);
+                    GlobalThreadPools.sleep(100);
                 }
             } else {
                 // 如果RPC调用失败，记录错误描述
@@ -183,7 +183,7 @@ public class DebugRpc {
             String response = ReserveRpcCall.queryTreeForExchange(projectId);
             JSONObject jo = new JSONObject(response);
             // 检查RPC调用结果码是否为"SUCCESS"，表示成功
-            if (ResUtil.checkResultCode(jo)) {
+            if (ResChecker.checkRes(jo)) {
                 // 获取可交换树木的信息
                 JSONObject exchangeableTree = jo.getJSONObject("exchangeableTree");
                 // 获取当前预算
@@ -191,7 +191,7 @@ public class DebugRpc {
                 // 获取区域信息
                 String region = exchangeableTree.getString("region");
                 // 记录树木查询结果
-                Log.debug("树苗查询🌱[" + region + "-" + treeName + "]#剩余:" + currentBudget);
+                Log.debug(TAG,"树苗查询🌱[" + region + "-" + treeName + "]#剩余:" + currentBudget);
             } else {
                 // 如果RPC调用失败，记录错误描述和项目ID
                 Log.record(jo.getString("resultDesc") + " projectId: " + projectId);
@@ -227,7 +227,7 @@ public class DebugRpc {
                     String gameId = miniGameInfo.getString("gameId");
                     String key = miniGameInfo.getString("key");
                     // 模拟等待迷你游戏完成
-                    ThreadUtil.sleep(4000L);
+                    GlobalThreadPools.sleep(4000L);
                     // 调用RPC方法完成迷你游戏
                     jo = new JSONObject(DebugRpcCall.miniGameFinish(gameId, key));
                     // 检查迷你游戏是否完成成功
@@ -258,7 +258,7 @@ public class DebugRpc {
                 int leftCount = data.getInt("leftCount");
                 // 如果还有剩余次数，继续行走
                 if (leftCount > 0) {
-                    ThreadUtil.sleep(3000L);
+                    GlobalThreadPools.sleep(3000L);
                     walkGrid(); // 递归调用，继续行走
                 }
             } else {
@@ -278,7 +278,7 @@ public class DebugRpc {
     private void queryAreaTrees() {
         try {
             JSONObject jo = new JSONObject(ReserveRpcCall.queryAreaTrees());
-            if (!ResUtil.checkResultCode(TAG, jo)) {
+            if (!ResChecker.checkRes(TAG, jo)) {
                 return;
             }
             JSONObject areaTrees = jo.getJSONObject("areaTrees");
@@ -289,7 +289,7 @@ public class DebugRpc {
                 if (!areaTrees.has(regionKey)) {
                     JSONObject region = regionConfig.getJSONObject(regionKey);
                     String regionName = region.optString("regionName");
-                    Log.debug("未解锁地区🗺️[" + regionName + "]");
+                    Log.debug(TAG,"未解锁地区🗺️[" + regionName + "]");
                 }
             }
         } catch (Throwable t) {
@@ -300,7 +300,7 @@ public class DebugRpc {
     private void getUnlockTreeItems() {
         try {
             JSONObject jo = new JSONObject(ReserveRpcCall.queryTreeItemsForExchange("", "project"));
-            if (!ResUtil.checkResultCode(TAG, jo)) {
+            if (!ResChecker.checkRes(TAG, jo)) {
                 return;
             }
             JSONArray ja = jo.getJSONArray("treeItems");
@@ -313,7 +313,7 @@ public class DebugRpc {
                     String itemName = jo.optString("itemName");
                     String region = jo.optString("region");
                     String organization = jo.optString("organization");
-                    Log.debug("未解锁项目🐘[" + region + "-" + itemName + "]#" + organization);
+                    Log.debug(TAG,"未解锁项目🐘[" + region + "-" + itemName + "]#" + organization);
                 }
             }
         } catch (Throwable t) {

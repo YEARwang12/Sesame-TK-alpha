@@ -1,7 +1,7 @@
 package fansirsqi.xposed.sesame.ui;
 
 import static fansirsqi.xposed.sesame.data.UIConfig.UI_OPTION_NEW;
-import static fansirsqi.xposed.sesame.data.ViewAppInfo.isApkInDebug;
+
 
 import android.annotation.SuppressLint;
 import android.app.AlertDialog;
@@ -9,6 +9,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.webkit.JavascriptInterface;
@@ -21,7 +23,6 @@ import android.widget.Toast;
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.core.content.ContextCompat;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 
@@ -38,6 +39,7 @@ import fansirsqi.xposed.sesame.BuildConfig;
 import fansirsqi.xposed.sesame.R;
 import fansirsqi.xposed.sesame.data.Config;
 import fansirsqi.xposed.sesame.data.UIConfig;
+import fansirsqi.xposed.sesame.data.ViewAppInfo;
 import fansirsqi.xposed.sesame.entity.AlipayUser;
 import fansirsqi.xposed.sesame.model.Model;
 import fansirsqi.xposed.sesame.model.ModelConfig;
@@ -50,20 +52,24 @@ import fansirsqi.xposed.sesame.ui.dto.ModelDto;
 import fansirsqi.xposed.sesame.ui.dto.ModelFieldInfoDto;
 import fansirsqi.xposed.sesame.ui.dto.ModelFieldShowDto;
 import fansirsqi.xposed.sesame.ui.dto.ModelGroupDto;
+import fansirsqi.xposed.sesame.ui.widget.ListDialog;
 import fansirsqi.xposed.sesame.util.Files;
 import fansirsqi.xposed.sesame.util.JsonUtil;
 import fansirsqi.xposed.sesame.util.LanguageUtil;
 import fansirsqi.xposed.sesame.util.Log;
-import fansirsqi.xposed.sesame.util.Maps.BeachMap;
-import fansirsqi.xposed.sesame.util.Maps.CooperateMap;
-import fansirsqi.xposed.sesame.util.Maps.IdMapManager;
-import fansirsqi.xposed.sesame.util.Maps.ReserveaMap;
-import fansirsqi.xposed.sesame.util.Maps.UserMap;
-import fansirsqi.xposed.sesame.util.Maps.VitalityRewardsMap;
+import fansirsqi.xposed.sesame.util.maps.BeachMap;
+import fansirsqi.xposed.sesame.util.maps.CooperateMap;
+import fansirsqi.xposed.sesame.util.maps.IdMapManager;
+import fansirsqi.xposed.sesame.util.maps.MemberBenefitsMap;
+import fansirsqi.xposed.sesame.util.maps.ParadiseCoinBenefitIdMap;
+import fansirsqi.xposed.sesame.util.maps.ReserveaMap;
+import fansirsqi.xposed.sesame.util.maps.UserMap;
+import fansirsqi.xposed.sesame.util.maps.VitalityRewardsMap;
 import fansirsqi.xposed.sesame.util.PortUtil;
 import fansirsqi.xposed.sesame.util.StringUtil;
 
 public class WebSettingsActivity extends BaseActivity {
+    private static final String TAG = "WebSettingsActivity";
     private static final Integer EXPORT_REQUEST_CODE = 1;
     private static final Integer IMPORT_REQUEST_CODE = 2;
     private ActivityResultLauncher<Intent> exportLauncher;
@@ -91,13 +97,15 @@ public class WebSettingsActivity extends BaseActivity {
         if (intent != null) {
             userId = intent.getStringExtra("userId");
             userName = intent.getStringExtra("userName");
-            intent.getBooleanExtra("debug", isApkInDebug());
+            intent.getBooleanExtra("debug", ViewAppInfo.INSTANCE.isApkInDebug());
         }
         Model.initAllModel();
         UserMap.setCurrentUserId(userId);
         UserMap.load(userId);
         CooperateMap.getInstance(CooperateMap.class).load(userId);
         IdMapManager.getInstance(VitalityRewardsMap.class).load(this.userId);
+        IdMapManager.getInstance(MemberBenefitsMap.class).load(this.userId);
+        IdMapManager.getInstance(ParadiseCoinBenefitIdMap.class).load(this.userId);
         IdMapManager.getInstance(ReserveaMap.class).load();
         IdMapManager.getInstance(BeachMap.class).load();
         Config.load(userId);
@@ -108,13 +116,16 @@ public class WebSettingsActivity extends BaseActivity {
             @Override
             public void handleOnBackPressed() {
                 if (webView.canGoBack()) {
+                    Log.runtime(TAG,"WebSettingsActivity.handleOnBackPressed: go back");
                     webView.goBack();
                 } else {
+                    Log.runtime(TAG,"WebSettingsActivity.handleOnBackPressed: save");
                     save();
                     finish();
                 }
             }
         });
+
         // 初始化导出逻辑
         exportLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
@@ -136,13 +147,11 @@ public class WebSettingsActivity extends BaseActivity {
         if (userName != null) {
             setBaseSubtitle(getString(R.string.settings) + ": " + userName);
         }
-        setBaseSubtitleTextColor(ContextCompat.getColor(this, R.color.textColorPrimary));
         context = this;
         webView = findViewById(R.id.webView);
         WebSettings settings = webView.getSettings();
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         settings.setJavaScriptEnabled(true);
-        settings.setDatabaseEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setUseWideViewPort(true);
         settings.setLoadWithOverviewMode(true);
@@ -175,9 +184,10 @@ public class WebSettingsActivity extends BaseActivity {
                 return false;
             }
         });
-        if (isApkInDebug()) {
+        if (ViewAppInfo.INSTANCE.isApkInDebug()) {
             WebView.setWebContentsDebuggingEnabled(true);
-            webView.loadUrl("http://192.168.31.69:5500/app/src/main/assets/web/index.html");
+//            webView.loadUrl("http://192.168.31.69:5500/app/src/main/assets/web/index.html");
+            webView.loadUrl("file:///android_asset/web/index.html");
         } else {
             webView.loadUrl("file:///android_asset/web/index.html");
         }
@@ -202,6 +212,8 @@ public class WebSettingsActivity extends BaseActivity {
                 if (webView.canGoBack()) {
                     webView.goBack();
                 } else {
+                    Log.runtime(TAG,"WebAppInterface onBackPressed: save");
+                    save();
                     WebSettingsActivity.this.finish();
                 }
             });
@@ -217,8 +229,8 @@ public class WebSettingsActivity extends BaseActivity {
         @JavascriptInterface
         public String getTabs() {
             String result = JsonUtil.formatJson(tabList, false);
-            if (isApkInDebug()) {
-                Log.runtime("WebSettingsActivity.getTabs: " + result);
+            if (ViewAppInfo.INSTANCE.isApkInDebug()) {
+                Log.runtime(TAG,"WebSettingsActivity.getTabs: " + result);
             }
             return result;
         }
@@ -231,8 +243,8 @@ public class WebSettingsActivity extends BaseActivity {
         @JavascriptInterface
         public String getGroup() {
             String result = JsonUtil.formatJson(groupList, false);
-            if (isApkInDebug()) {
-                Log.runtime("WebSettingsActivity.getGroup: " + result);
+            if (ViewAppInfo.INSTANCE.isApkInDebug()) {
+                Log.runtime(TAG,"WebSettingsActivity.getGroup: " + result);
             }
             return result;
         }
@@ -249,8 +261,8 @@ public class WebSettingsActivity extends BaseActivity {
                 modelDtoList.add(new ModelDto(modelConfig.getCode(), modelConfig.getName(), modelConfig.getIcon(), groupCode, modelFields));
             }
             String result = JsonUtil.formatJson(modelDtoList, false);
-            if (isApkInDebug()) {
-                Log.runtime("WebSettingsActivity.getModelByGroup: " + result);
+            if (ViewAppInfo.INSTANCE.isApkInDebug()) {
+                Log.runtime(TAG,"WebSettingsActivity.getModelByGroup: " + result);
             }
             return result;
         }
@@ -289,8 +301,8 @@ public class WebSettingsActivity extends BaseActivity {
                     list.add(ModelFieldShowDto.toShowDto(modelField));
                 }
                 String result = JsonUtil.formatJson(list, false);
-                if (isApkInDebug()) {
-                    Log.runtime("WebSettingsActivity.getModel: " + result);
+                if (ViewAppInfo.INSTANCE.isApkInDebug()) {
+                    Log.runtime(TAG,"WebSettingsActivity.getModel: " + result);
                 }
                 return result;
             }
@@ -336,8 +348,8 @@ public class WebSettingsActivity extends BaseActivity {
                 ModelField<?> modelField = modelConfig.getModelField(fieldCode);
                 if (modelField != null) {
                     String result = JsonUtil.formatJson(ModelFieldInfoDto.toInfoDto(modelField), false);
-                    if (isApkInDebug()) {
-                        Log.runtime("WebSettingsActivity.getField: " + result);
+                    if (ViewAppInfo.INSTANCE.isApkInDebug()) {
+                        Log.runtime(TAG,"WebSettingsActivity.getField: " + result);
                     }
                     return result;
                 }
@@ -364,7 +376,7 @@ public class WebSettingsActivity extends BaseActivity {
 
         @JavascriptInterface
         public void Log(String log) {
-            Log.record("设置：" + log);
+            Log.record(TAG,"设置：" + log);
         }
     }
 
@@ -375,6 +387,7 @@ public class WebSettingsActivity extends BaseActivity {
         menu.add(0, 3, 3, "删除配置");
         menu.add(0, 4, 4, "单向好友");
         menu.add(0, 5, 5, "切换UI");
+        menu.add(0, 6, 6, "保存");
         return super.onCreateOptionsMenu(menu);
     }
 
@@ -420,7 +433,8 @@ public class WebSettingsActivity extends BaseActivity {
                         .show();
                 break;
             case 4:
-                ListDialog.show(this, "单向好友列表", AlipayUser.getList(user -> user.getFriendStatus() != 1), SelectModelFieldFunc.newMapInstance(), false, ListDialog.ListType.SHOW);
+                ListDialog.show(this, "单向好友列表", AlipayUser.getList(user -> user.getFriendStatus() != 1), SelectModelFieldFunc.newMapInstance(), false,
+                        ListDialog.ListType.SHOW);
                 break;
             case 5:
                 UIConfig.INSTANCE.setUiOption(UI_OPTION_NEW);
@@ -434,22 +448,36 @@ public class WebSettingsActivity extends BaseActivity {
                     Toast.makeText(this, "切换失败", Toast.LENGTH_SHORT).show();
                 }
                 break;
+            case 6:
+                // 在调用 save() 之前，先调用 JS 函数同步 WebView 中的数据到 Java 端
+                Log.runtime(TAG,"WebSettingsActivity.onOptionsItemSelected: Calling handleData() in WebView");
+                webView.evaluateJavascript("if(typeof handleData === 'function'){ handleData(); } else { console.error('handleData function not found'); }", null);
+                // 使用 Handler 延迟执行 save()，给 JS 一点时间完成异步操作
+                // 200 毫秒是一个经验值，如果仍然有问题可以适当增加
+                new Handler(Looper.getMainLooper()).postDelayed(this::save, 200); // 延迟 200 毫秒
+                break;
         }
         return super.onOptionsItemSelected(item);
     }
 
     private void save() {
-        if (Config.isModify(userId) && Config.save(userId, false)) {
-            Toast.makeText(this, "保存成功！", Toast.LENGTH_SHORT).show();
-            if (!StringUtil.isEmpty(userId)) {
-                try {
-                    Intent intent = new Intent("com.eg.android.AlipayGphone.sesame.restart");
-                    intent.putExtra("userId", userId);
-                    sendBroadcast(intent);
-                } catch (Throwable th) {
-                    Log.printStackTrace(th);
+        if (Config.isModify(userId)) {
+            if (Config.save(userId, false)) {
+                Toast.makeText(context, "保存成功！", Toast.LENGTH_SHORT).show();
+                if (!StringUtil.isEmpty(userId)) {
+                    try {
+                        Intent intent = new Intent("com.eg.android.AlipayGphone.sesame.restart");
+                        intent.putExtra("userId", userId);
+                        sendBroadcast(intent);
+                    } catch (Throwable th) {
+                        Log.printStackTrace(th);
+                    }
                 }
+            }else{
+                Toast.makeText(context, "保存失败！", Toast.LENGTH_SHORT).show();
             }
+        } else {
+            Toast.makeText(context, "配置未修改，无需保存！", Toast.LENGTH_SHORT).show();
         }
         if (!StringUtil.isEmpty(userId)) {
             UserMap.save(userId);
