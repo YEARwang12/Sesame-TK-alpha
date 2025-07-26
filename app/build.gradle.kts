@@ -1,4 +1,3 @@
-import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -7,10 +6,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
 }
-tasks.register("testClasses") {
-    description = "Dummy task for compatibility"
-    group = "Verification"
-}
+
 android {
     namespace = "fansirsqi.xposed.sesame"
     compileSdk = 36
@@ -20,29 +16,29 @@ android {
         applicationId = "fansirsqi.xposed.sesame"
         minSdk = 21
         targetSdk = 36
-        
+
         if (!System.getenv("CI").toBoolean()) {
             ndk {
                 abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64"))
             }
         }
-        
+
         // 版本配置
         val major = 0
         val minor = 2
         val patch = 6
         val buildTag = "alpha"
-        
+
         val buildDate = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA).apply {
             timeZone = TimeZone.getTimeZone("GMT+8")
         }.format(Date())
-        
+
         val buildTime = SimpleDateFormat("HH:mm:ss", Locale.CHINA).apply {
             timeZone = TimeZone.getTimeZone("GMT+8")
         }.format(Date())
-        
+
         val buildTargetCode = try {
-            buildDate.replace("-",".")+"."+buildTime.replace(":",".")
+            buildDate.replace("-", ".") + "." + buildTime.replace(":", ".")
         } catch (_: Exception) {
             "0000"
         }
@@ -52,27 +48,29 @@ android {
             val output = process.inputStream.bufferedReader().use { it.readText() }.trim()
             process.waitFor()
             if (process.exitValue() == 0) {
-                output
+                output.toInt()
             } else {
-                process.errorStream.bufferedReader().use { it.readText() }
-                "0"
+                val error = process.errorStream.bufferedReader().use { it.readText() }
+                println("Git error: $error")
+                "1".toInt()
             }
         } catch (_: Exception) {
-            "0"
+            "1".toInt()
         }
 
 
-        versionCode = if (gitCommitCount.isEmpty()) 0 else gitCommitCount.toInt()
+        versionCode = gitCommitCount
         versionName = if (buildTag.contains("alpha") || buildTag.contains("beta")) {
-            "$major.$minor.$patch-$buildTag.$buildTargetCode"
+            "v$major.$minor.$patch-$buildTag.$buildTargetCode"
         } else {
-            "$major.$minor.$patch-$buildTag"
+            "v$major.$minor.$patch-$buildTag"
         }
 
         buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
         buildConfigField("String", "BUILD_NUMBER", "\"$buildTargetCode\"")
         buildConfigField("String", "BUILD_TAG", "\"$buildTag\"")
+        buildConfigField("String", "VERSION", "\"v$major.$minor.$patch\"")
 
         ndk {
             abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64"))
@@ -127,6 +125,7 @@ android {
                     }
                 }
             }
+
             "compatible" -> {
                 compileOptions {
                     sourceCompatibility = JavaVersion.VERSION_11
@@ -206,8 +205,10 @@ dependencies {
 
     implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.6.2")
     implementation("androidx.compose.runtime:runtime-livedata")
+    implementation("org.nanohttpd:nanohttpd:2.3.1")
 
-    implementation (libs.androidx.constraintlayout)
+
+    implementation(libs.androidx.constraintlayout)
 
     implementation(libs.activity.compose)
 

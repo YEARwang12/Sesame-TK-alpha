@@ -1,6 +1,5 @@
 package fansirsqi.xposed.sesame.hook
 
-import fansirsqi.xposed.sesame.model.BaseModel
 import fansirsqi.xposed.sesame.util.Log
 import okhttp3.Call
 import okhttp3.Callback

@@ -1,6 +1,7 @@
 package fansirsqi.xposed.sesame.hook
 
 import de.robv.android.xposed.XC_MethodHook
+import de.robv.android.xposed.XC_MethodReplacement
 import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.XposedHelpers
 import de.robv.android.xposed.callbacks.XC_LoadPackage
@@ -94,6 +95,19 @@ object HookUtil {
         }
     }
 
+    fun hookOtherService(lpparam: XC_LoadPackage.LoadPackageParam) {
+        try {
+            //hook 服务不在后台
+            XposedHelpers.findAndHookMethod("com.alipay.mobile.common.fgbg.FgBgMonitorImpl", lpparam.classLoader, "isInBackground", XC_MethodReplacement.returnConstant(false))
+            XposedHelpers.findAndHookMethod("com.alipay.mobile.common.fgbg.FgBgMonitorImpl", lpparam.classLoader, "isInBackground", Boolean::class.javaPrimitiveType, XC_MethodReplacement.returnConstant(false))
+            XposedHelpers.findAndHookMethod("com.alipay.mobile.common.fgbg.FgBgMonitorImpl", lpparam.classLoader, "isInBackgroundV2", XC_MethodReplacement.returnConstant(false))
+            //hook 服务在前台
+            XposedHelpers.findAndHookMethod("com.alipay.mobile.common.transport.utils.MiscUtils", lpparam.classLoader, "isAtFrontDesk", lpparam.classLoader.loadClass("android.content.Context"), XC_MethodReplacement.returnConstant(true))
+        } catch (e: Exception) {
+            Log.printStackTrace(TAG, "hookOtherService 失败", e)
+        }
+    }
+
     /**
      * Hook DefaultBridgeCallback.sendJSONResponse 方法，记录响应内容
      */
@@ -154,7 +168,7 @@ object HookUtil {
         Log.runtime(TAG, "Hook AccountManagerListAdapter#getCount END")
     }
 
-    fun hookActive(lpparam: XC_LoadPackage.LoadPackageParam){
+    fun hookActive(lpparam: XC_LoadPackage.LoadPackageParam) {
         try {
             XposedBridge.log("Hooking fansirsqi.xposed.sesame.ui.MainActivity...")
 
