@@ -94,7 +94,7 @@ public class OldRpcBridge implements RpcBridge {
         String args = rpcEntity.getRequestData(); // 获取请求参数
         for (int count = 0; count < tryCount; count++) {
             try {
-                RpcIntervalLimit.enterIntervalLimit(method); // 进入 RPC 调用间隔限制
+                RpcIntervalLimit.INSTANCE.enterIntervalLimit(method); // 进入 RPC 调用间隔限制
                 Object response = invokeRpcCall(method, args); // 调用 RPC 方法
                 return processResponse(rpcEntity, response, id, method, args, retryInterval); // 处理响应
             } catch (Throwable t) {

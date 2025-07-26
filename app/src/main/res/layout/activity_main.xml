@@ -5,20 +5,6 @@
     android:layout_height="match_parent"
     android:background="@color/background">
 
-    <!-- 主图 -->
-    <ImageView
-        android:id="@+id/main_image"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:contentDescription="@string/the_image_of_main"
-        android:onClick="onClick"
-        android:scaleType="centerInside"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:srcCompat="@drawable/main"
-        android:alpha="0.8"
-        tools:ignore="ImageContrastCheck,MissingConstraints,UsingOnClickInXml" />
-
     <!-- 标题栏 -->
     <include
         layout="@layout/base_title"
@@ -29,52 +15,33 @@
         app:layout_constraintTop_toTopOf="parent" />
 
 
+    <androidx.compose.ui.platform.ComposeView
+        android:id="@+id/device_info"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="16dp"
+        android:layout_marginRight="16dp"
+        android:layout_marginTop="80dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/base_title"
+        app:layout_constraintVertical_bias="0" />
+
+
     <TextView
         android:id="@+id/one_word"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="72dp"
+        android:layout_marginBottom="40dp"
         android:gravity="center"
         android:onClick="onClick"
         android:text="@string/text_api"
         android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-        android:textColor="?attr/colorOnSurface"
-        android:textSize="14sp"
+        app:layout_constraintBottom_toTopOf="@id/bottom_button_container"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/base_title"
         tools:ignore="UsingOnClickInXml" />
-
-    <!-- 构建目标 -->
-    <TextView
-        android:id="@+id/bulid_target"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:fontFamily="sans-serif-smallcaps"
-        android:gravity="center"
-        android:text="@string/bulid_target"
-        android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-        android:textSize="14sp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/one_word" />
-
-    <!-- 构建版本 -->
-    <TextView
-        android:id="@+id/bulid_version"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:fontFamily="sans-serif-smallcaps"
-        android:gravity="center"
-        android:text="@string/build_version_1_0_0"
-        android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-        android:textSize="14sp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/bulid_target" />
-
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/bottom_button_container"
@@ -87,8 +54,8 @@
 
         <!-- 第一行三个按钮 -->
         <com.google.android.material.button.MaterialButton
-            style="@style/Widget.App.Button.Main"
             android:id="@+id/btn_forest_log"
+            style="@style/Widget.App.Button.Main"
             android:onClick="onClick"
             android:text="@string/forest_log"
             app:icon="@drawable/forest"
@@ -97,18 +64,18 @@
             app:layout_constraintTop_toTopOf="parent" />
 
         <com.google.android.material.button.MaterialButton
-            style="@style/Widget.App.Button.Main"
             android:id="@+id/btn_farm_log"
+            style="@style/Widget.App.Button.Main"
             android:onClick="onClick"
             android:text="@string/farm_log"
-            app:icon="@drawable/farm"
+            app:icon="@drawable/farm2"
             app:layout_constraintEnd_toStartOf="@id/btn_other_log"
             app:layout_constraintStart_toEndOf="@id/btn_forest_log"
             app:layout_constraintTop_toTopOf="parent" />
 
         <com.google.android.material.button.MaterialButton
-            style="@style/Widget.App.Button.Main"
             android:id="@+id/btn_other_log"
+            style="@style/Widget.App.Button.Main"
             android:onClick="onClick"
             android:text="@string/other_log"
             app:icon="@drawable/all_log"
@@ -118,8 +85,8 @@
 
         <!-- 第二行三个按钮 -->
         <com.google.android.material.button.MaterialButton
-            style="@style/Widget.App.Button.Main"
             android:id="@+id/btn_friend_watch"
+            style="@style/Widget.App.Button.Main"
             android:onClick="onClick"
             android:text="@string/friend_watch"
             app:icon="@drawable/friend"
@@ -128,8 +95,8 @@
             app:layout_constraintTop_toBottomOf="@id/btn_forest_log" />
 
         <com.google.android.material.button.MaterialButton
-            style="@style/Widget.App.Button.Main"
             android:id="@+id/btn_github"
+            style="@style/Widget.App.Button.Main"
             android:onClick="onClick"
             android:text="@string/visit_github"
             app:icon="@drawable/github"
@@ -138,8 +105,8 @@
             app:layout_constraintTop_toBottomOf="@id/btn_farm_log" />
 
         <com.google.android.material.button.MaterialButton
-            style="@style/Widget.App.Button.Main"
             android:id="@+id/btn_settings"
+            style="@style/Widget.App.Button.Main"
             android:onClick="onClick"
             android:text="@string/settings"
             app:icon="@drawable/setting"

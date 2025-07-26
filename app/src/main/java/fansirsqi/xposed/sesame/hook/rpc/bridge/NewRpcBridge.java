@@ -127,7 +127,7 @@ public class NewRpcBridge implements RpcBridge {
             do {
                 count++;
                 try {
-                    RpcIntervalLimit.enterIntervalLimit(rpcEntity.getRequestMethod());
+                    RpcIntervalLimit.INSTANCE.enterIntervalLimit(rpcEntity.getRequestMethod());
                     newRpcCallMethod.invoke(
                             newRpcInstance, rpcEntity.getRequestMethod(), false, false, "json", parseObjectMethod.invoke(null,
                                     rpcEntity.getRpcFullRequestData()), "", null, true, false, 0, false, "", null, null, null, Proxy.newProxyInstance(loader,

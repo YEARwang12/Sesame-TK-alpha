@@ -12,9 +12,16 @@ import android.view.View
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MaterialTheme.colorScheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.ComposeView
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.core.util.Consumer
+import androidx.lifecycle.lifecycleScope
+import fansirsqi.xposed.sesame.BuildConfig
 import fansirsqi.xposed.sesame.R
 import fansirsqi.xposed.sesame.data.General
 import fansirsqi.xposed.sesame.data.RunType
@@ -26,15 +33,15 @@ import fansirsqi.xposed.sesame.model.SelectModelFieldFunc
 import fansirsqi.xposed.sesame.ui.widget.ListDialog
 import fansirsqi.xposed.sesame.util.AssetUtil
 import fansirsqi.xposed.sesame.util.Detector
+import fansirsqi.xposed.sesame.util.DeviceInfoCard
+import fansirsqi.xposed.sesame.util.DeviceInfoUtil
 import fansirsqi.xposed.sesame.util.FansirsqiUtil
-import fansirsqi.xposed.sesame.util.FansirsqiUtil.OneWordCallback
 import fansirsqi.xposed.sesame.util.Files
-import fansirsqi.xposed.sesame.util.GlobalThreadPools
 import fansirsqi.xposed.sesame.util.Log
 import fansirsqi.xposed.sesame.util.maps.UserMap
 import fansirsqi.xposed.sesame.util.PermissionUtil
 import fansirsqi.xposed.sesame.util.ToastUtil
-import java.util.Calendar
+import kotlinx.coroutines.launch
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -60,10 +67,21 @@ class MainActivity : BaseActivity() {
             return
         }
         setContentView(R.layout.activity_main)
-        val mainImage = findViewById<View>(R.id.main_image)
-        val buildVersion = findViewById<TextView>(R.id.bulid_version)
-        val buildTarget = findViewById<TextView>(R.id.bulid_target)
         oneWord = findViewById(R.id.one_word)
+        val deviceInfo: ComposeView = findViewById(R.id.device_info)
+        deviceInfo.setContent {
+            val customColorScheme = lightColorScheme(
+                primary = Color(0xFF3F51B5),
+                onPrimary = Color.White,
+                background = Color(0xFFF5F5F5),
+                onBackground = Color.Black
+            )
+            MaterialTheme(colorScheme = customColorScheme) {
+                DeviceInfoCard(DeviceInfoUtil.getDeviceInfo(this@MainActivity))
+            }
+        }
+
+
         // 获取并设置一言句子
         try {
             if (!AssetUtil.copySoFileToStorage(this, AssetUtil.checkerDestFile)) {
@@ -78,31 +96,10 @@ class MainActivity : BaseActivity() {
             Log.error(TAG, "load libSesame err:" + e.message)
         }
 
-        mainImage?.setOnLongClickListener { v: View ->
-            // 当视图被长按时执行的操作
-            if (v.id == R.id.main_image) {
-                val data = "file://" + Files.getDebugLogFile().absolutePath
-                val it = Intent(this@MainActivity, HtmlViewerActivity::class.java)
-                it.putExtra("nextLine", false)
-                it.putExtra("canClear", true)
-                it.data = data.toUri()
-                startActivity(it)
-                return@setOnLongClickListener true // 表示事件已处理
-            }
-            false // 如果不是目标视图，返回false
+        lifecycleScope.launch {
+            val result = FansirsqiUtil.getOneWord()
+            oneWord.text = result
         }
-        FansirsqiUtil.getOneWord(
-            object : OneWordCallback {
-                override fun onSuccess(result: String?) {
-                    runOnUiThread { oneWord.text = result } // 在主线程中更新UI
-                }
-
-                override fun onFailure(error: String?) {
-                    runOnUiThread { oneWord.text = error } // 在主线程中更新UI
-                }
-            })
-        buildVersion.text = "Build Version: " + ViewAppInfo.appVersion // 版本信息
-        buildTarget.text = "Build Target: " + ViewAppInfo.appBuildTarget // 编译日期信息
     }
 
     override fun onResume() {
@@ -147,18 +144,12 @@ class MainActivity : BaseActivity() {
     }
 
     fun onClick(v: View) {
-        if (v.id == R.id.main_image) {
-            updateSubTitle(RunType.LOADED.nickName)
-            ToastUtil.showToastWithDelay(this, "再点就要去了.~a.e", 800)
-            return
-        }
         var data = "file://"
         val id = v.id
         when (id) {
             R.id.btn_forest_log -> {
                 data += Files.getForestLogFile().absolutePath
             }
-
             R.id.btn_farm_log -> {
                 data += Files.getFarmLogFile().absolutePath
             }
@@ -199,20 +190,11 @@ class MainActivity : BaseActivity() {
             }
 
             R.id.one_word -> {
-                Thread {
-                    ToastUtil.showToastWithDelay(this@MainActivity, "😡 正在获取句子，请稍后……", 800)
-                    GlobalThreadPools.sleep(5000)
-                    FansirsqiUtil.getOneWord(
-                        object : OneWordCallback {
-                            override fun onSuccess(result: String?) {
-                                runOnUiThread { oneWord.text = result } // 在主线程中更新UI
-                            }
-
-                            override fun onFailure(error: String?) {
-                                runOnUiThread { oneWord.text = error } // 在主线程中更新UI
-                            }
-                        })
-                }.start()
+                oneWord.text = "😡 正在获取句子，请稍后……"
+                lifecycleScope.launch {
+                    val result = FansirsqiUtil.getOneWord()
+                    oneWord.text = result
+                }
                 return
             }
         }
@@ -236,7 +218,7 @@ class MainActivity : BaseActivity() {
             menu.add(0, 5, 5, R.string.view_capture)
             menu.add(0, 6, 6, R.string.extend)
             menu.add(0, 7, 7, R.string.settings)
-            if (ViewAppInfo.isApkInDebug) {
+            if (BuildConfig.DEBUG) {
                 menu.add(0, 8, 8, "清除配置")
             }
         } catch (e: Exception) {
