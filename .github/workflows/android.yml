@@ -63,7 +63,7 @@ jobs:
         with:
           releaseDir: app/build/outputs/apk/all
           signingKey: ${{ secrets.SAME }}
-          keyAlias: ${{ same }}
+          keyAlias: ${{ SAME }}
           keyStorePassword: ${{ secrets.SAME_PASSWORD }}
           keyPassword: ${{ secrets.SAME_PASSWORD }}
           buildToolsVersion: 36.0.0
