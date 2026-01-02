@@ -1,10 +1,14 @@
-name: 📦Auto Build for Nrun-name: 📦 ${{ github.actor }} @ Github Action
+name: 📦Auto Build for N
+run-name: 📦 ${{ github.actor }} @ Github Action
+
 on:
   release:
     types: [ published ]
+    
 jobs:
   build:
     runs-on: ubuntu-latest
+    
     steps:
       - name: ⏰ Set Timezone to Asia/Shanghai
         run: |
@@ -16,14 +20,12 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.head_ref || github.ref_name }}
-      
       - name: ☕ Set up JDK
         uses: actions/setup-java@v4
         with:
           java-version: "17"
           distribution: "zulu"
           cache: gradle
-      
       - name: 🤝 Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -135,7 +137,7 @@ jobs:
       - name: 🔁 Sync Release to Target Repository
         uses: softprops/action-gh-release@v2
         with:
-          repository: Xposed-Modules-Repo/fansirsqi.xposed.sesame
+          仓库: Xposed-Modules-Repo/fansirsqi.xposed.sesame
           name: ${{ github.event.release.tag_name || steps.extract_info.outputs.version }}
           files: |
             ${{ steps.extract_apks.outputs.signed_arm64 }}
