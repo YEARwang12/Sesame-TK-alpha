@@ -2081,11 +2081,11 @@ class AntFarm : ModelTask() {
                 if (ResChecker.checkRes(TAG + "查询庄园任务失败:", jo)) {
                     val farmTaskList = jo.getJSONArray("farmTaskList")
                     val signList = jo.getJSONObject("signList")
-                    if (!Status.hasFlagToday("farm::sign") && signRegardless!!.value) {
+                    if (!Status.hasFlagToday("farm::signed") && signRegardless!!.value) {
                         syncAnimalStatus(ownerFarmId)
                         val foodSpace = foodStockLimit - foodStock
-                        farmSign(signList)
-                        if (foodSpace < 180) {
+                        val result = farmSign(signList)
+                        if (result && foodSpace < 180) {
                             Log.farm("签到实际获得饲料: ${foodSpace}g (因饲料空间不足)")
                         }
                     }
@@ -2123,11 +2123,11 @@ class AntFarm : ModelTask() {
                                     isFeedFull = true
                                     break
                                 }
-                                if (!Status.hasFlagToday("farm::sign")) {
+                                if (!Status.hasFlagToday("farm::signed") && !signRegardless!!.value) {
                                     if (foodStockLeft >= 180 || TimeUtil.isNowAfterOrCompareTimeStr("1400")) {
                                         farmSign(signList)
                                     } else {
-                                        Log.farm("！！！饲料空间不足180g，庄园暂不签到，14点后未签会直接签到，避免断签 ！！！")
+                                        Log.record("饲料空间不足180g，庄园暂不签到，如已签到请忽略")
                                     }
                                 }
                                 if (awardCount > foodStockLeft) {
@@ -2151,7 +2151,7 @@ class AntFarm : ModelTask() {
                                 add2FoodStock(awardCount)
                                 Log.farm("收取庄园任务奖励[$taskTitle] # ${awardCount}g (剩余容量: ${foodStockLimit - foodStock}g)")
                                 if(foodStockAfter >= foodStockLimit){
-                                    Log.farm("领取饲料后饲料[已满]" + foodStockLimit + "g，停止后续领取")
+                                    Log.farm("领取饲料后饲料[已满]" + foodStock + "g，停止后续领取")
                                     isFeedFull = true
                                     break
                                 }
@@ -2184,11 +2184,11 @@ class AntFarm : ModelTask() {
         }
     }
 
-    private fun farmSign(signList: JSONObject) {
+    private fun farmSign(signList: JSONObject): Boolean {
         try {
-            val flag = "farm::sign"
-            if (Status.hasFlagToday(flag)) return
-            val jaFarmSignList = signList.getJSONArray("signList")
+            val flag = "farm::signed"
+            if (Status.hasFlagToday(flag)) return false
+            val jaFarmSignList = signList.getJSONArray("signList")?: return false
             val currentSignKey = signList.getString("currentSignKey")
             for (i in 0..<jaFarmSignList.length()) {
                 val jo = jaFarmSignList.getJSONObject(i)
@@ -2202,14 +2202,22 @@ class AntFarm : ModelTask() {
                         if (ResChecker.checkRes(TAG, signResponse)) {
                             Log.farm("庄园签到📅获得饲料${awardCount}g,签到天数${currentContinuousCount}")
                             Status.setFlagToday(flag)
+                            return true
+                        } else {
+                            Log.farm("签到失败")
+                            return false
                         }
+                    } else {
+                        Log.record(TAG,"今日已经签到了")
+                        Status.setFlagToday(flag)
+                        return false
                     }
-                    return
                 }
             }
         } catch (e: JSONException) {
             Log.printStackTrace(TAG, "庄园签到 JSON解析错误:", e)
         }
+        return false
     }
 
     /**

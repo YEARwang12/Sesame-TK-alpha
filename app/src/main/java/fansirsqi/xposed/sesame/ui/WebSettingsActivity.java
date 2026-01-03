@@ -235,7 +235,7 @@ public class WebSettingsActivity extends BaseActivity {
         public String getTabs() {
             String result = JsonUtil.formatJson(tabList, false);
             if (BuildConfig.DEBUG) {
-                Log.record(TAG, "WebSettingsActivity.getTabs: " + result);
+//                Log.record(TAG, "WebSettingsActivity.getTabs: " + result);
             }
             return result;
         }
@@ -258,7 +258,7 @@ public class WebSettingsActivity extends BaseActivity {
         public String getGroup() {
             String result = JsonUtil.formatJson(groupList, false);
             if (BuildConfig.DEBUG) {
-                Log.record(TAG, "WebSettingsActivity.getGroup: " + result);
+//                Log.record(TAG, "WebSettingsActivity.getGroup: " + result);
             }
             return result;
         }
@@ -276,7 +276,7 @@ public class WebSettingsActivity extends BaseActivity {
             }
             String result = JsonUtil.formatJson(modelDtoList, false);
             if (BuildConfig.DEBUG) {
-                Log.record(TAG, "WebSettingsActivity.getModelByGroup: " + result);
+//                Log.record(TAG, "WebSettingsActivity.getModelByGroup: " + result);
             }
             return result;
         }
@@ -316,7 +316,7 @@ public class WebSettingsActivity extends BaseActivity {
                 }
                 String result = JsonUtil.formatJson(list, false);
                 if (BuildConfig.DEBUG) {
-                    Log.record(TAG, "WebSettingsActivity.getModel: " + result);
+//                    Log.record(TAG, "WebSettingsActivity.getModel: " + result);
                 }
                 return result;
             }
@@ -363,7 +363,7 @@ public class WebSettingsActivity extends BaseActivity {
                 if (modelField != null) {
                     String result = JsonUtil.formatJson(ModelFieldInfoDto.toInfoDto(modelField), false);
                     if (BuildConfig.DEBUG) {
-                        Log.record(TAG, "WebSettingsActivity.getField: " + result);
+//                        Log.record(TAG, "WebSettingsActivity.getField: " + result);
                     }
                     return result;
                 }

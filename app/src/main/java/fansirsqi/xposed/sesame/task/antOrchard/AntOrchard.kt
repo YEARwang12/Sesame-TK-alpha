@@ -732,15 +732,14 @@ class AntOrchard : ModelTask() {
                             repeat(need) { index ->
                                 val wua = SecurityBodyHelper.getSecurityBodyData(4).toString()
                                 val spreadResult = AntOrchardRpcCall.orchardSpreadManure(wua, "ch_appcenter__chsub_9patch")
-                                Log.record(TAG, "施肥第 ${index + 1} 次结果：$spreadResult")
-
                                 val resultJson = JSONObject(spreadResult)
                                 val resultCode = resultJson.optString("resultCode", "")
                                 val resultDesc = resultJson.optString("resultDesc", "")
-
                                 if (resultCode != "100") {
                                     Log.error(TAG, "农场 orchardSpreadManure 错误：$resultDesc")
                                     return   // ❗施肥失败直接退出整个 limitedTimeChallenge()
+                                } else{
+                                    Log.record(TAG, "施肥第 ${index + 1} 次结果：$resultDesc")
                                 }
                             }
 

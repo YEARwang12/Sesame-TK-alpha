@@ -1,4 +1,4 @@
-package fansirsqi.xposed.sesame.ui.components
+package fansirsqi.xposed.sesame.newui
 
 import android.graphics.Paint
 import androidx.compose.foundation.Canvas
