@@ -693,9 +693,11 @@ public class ApplicationHook {
                                                 Log.record(TAG, "手动APP触发，已开启");
                                                 TaskRunnerAdapter adapter = new TaskRunnerAdapter();
                                                 adapter.run();
+                                                return;
+                                            } else {
+                                                Log.record(TAG, "手动APP触发，已关闭");
+                                                return;
                                             }
-                                            Log.record(TAG, "手动APP触发，已关闭");
-                                            return;
                                         }
                                     }
 
