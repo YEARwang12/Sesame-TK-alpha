@@ -75,33 +75,11 @@ jobs:
         id: rename_apk
         run: |
          original_apk="${{ steps.extract_apks.outputs.signed_arm64 }}"
-         version="${{ github.event.release.tag_name || github.ref_name }}"
-         version="${version#refs/tags/}"  # 移除可能的 refs/tags/ 前缀
-         version="${version#v}"  # 移除可能的 v 前缀
-    
-         # 确保文件存在
-         if [ ! -f "$original_apk" ]; then
-           echo "❌ Error: Original APK file not found: $original_apk"
-          exit 1
-         fi
-          
-         # 提取基础名称（移除旧版本号）
+         version="${{ github.ref_name }}"
          base_name=$(basename "$original_apk" | sed 's/-[0-9]*\.[0-9]*\.[0-9]*-signed\.apk//')
-          
-         # 创建新文件名
          new_name="${base_name}-${version}-signed.apk"
          new_path="$(dirname "$original_apk")/$new_name"
-         
-         # 重命名
          mv "$original_apk" "$new_path"
-         
-         # 验证新文件
-         if [ ! -f "$new_path" ]; then
-           echo "❌ Error: Failed to rename APK file"
-           exit 1
-         fi
-    
-         echo "✅ Successfully renamed APK to: $new_name"
          echo "renamed_apk=$new_path" >> $GITHUB_OUTPUT
     
       - name: 🚀 Upload APK - arm64-v8a
@@ -188,7 +166,7 @@ jobs:
       - name: 🔁 Sync Release to Target Repository
         uses: softprops/action-gh-release@v2
         with:
-          repository: Xposed-Modules-Repo/fansirsqi.xposed.sesame
+          仓库: Xposed-Modules-Repo/fansirsqi.xposed.sesame
           name: ${{ github.event.release.tag_name || steps.extract_info.outputs.version }} # 发布的名称。默认为标签名称
           files: |
             ${{ steps.rename_apk.outputs.renamed_apk }}
