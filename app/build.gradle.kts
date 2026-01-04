@@ -48,8 +48,22 @@ android {
             timeZone = TimeZone.getTimeZone("GMT+8")
         }.format(Date())
 
-        versionCode = gitCommitCount
-        versionName = "0.8.8"
+        val versionParam = project.findProperty("version")?.toString() ?: "0.8.8"
+        
+        // 清理版本号（只保留数字和点）
+        val cleanVersion = versionParam.replace(Regex("[^0-9.]"), "")
+        
+        // 解析版本号生成 versionCode
+        val versionParts = cleanVersion.split(".")
+        val major = versionParts.getOrNull(0)?.toIntOrNull() ?: 0
+        val minor = versionParts.getOrNull(1)?.toIntOrNull() ?: 0
+        val patch = versionParts.getOrNull(2)?.toIntOrNull() ?: 0
+        
+        // 生成 versionCode (例如 1.0.3 -> 10003)
+        val versionCodeValue = major * 10000 + minor * 100 + patch
+        
+        versionCode = versionCodeValue
+        versionName = cleanVersion
 
         buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
