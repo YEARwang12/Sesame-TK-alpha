@@ -86,7 +86,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: apk-arm64-v8a
-          path: ${{ steps.extract_apks.outputs.signed_arm64 }}
+          path: ${{ steps.rename_apk.outputs.renamed_apk }}
       
       - name: 🛠️ Extract file names and version
         id: extract_info
