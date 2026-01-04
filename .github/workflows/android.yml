@@ -74,48 +74,51 @@ jobs:
       - name: 🏷️ 重命名APK文件
         id: rename_apk
         run: |
-         original_apk="${{ steps.extract_apks.outputs.signed_arm64 }}"
-         # 从 GitHub ref 中提取纯版本号 (移除 refs/tags/ 前缀)
-         raw_version="${{ github.ref }}"
-         version="${raw_version##*/}"  # 提取最后一个'/'之后的部分
+          # 获取原始APK路径
+          original_apk="${{ steps.extract_apks.outputs.signed_arm64 }}"
+          original_filename=$(basename "$original_apk")
     
-         # 从原始文件名中提取基础部分
-         original_filename=$(basename "$original_apk")
+          # 从 GitHub ref 中提取纯版本号
+          if [ "${{ github.event_name }}" = "release" ]; then
+            version="${{ github.event.release.tag_name }}"
+          else
+            raw_ref="${{ github.ref }}"
+            version="${raw_ref##*/}"  # 提取最后一个'/'之后的部分
+            # 移除可能的 'v' 前缀
+            version="${version#v}"
+          fi
     
-         # 更健壮的文件名处理 (处理各种可能的版本格式)
-         if [[ "$original_filename" == *"signed.apk" ]]; then
-           # 已经是签名文件，只需替换版本号部分
-           base_name=$(echo "$original_filename" | sed 's/-[0-9]*\.[0-9]*\.[0-9]*\(-\|$\)/-/')
-           base_name=$(echo "$base_name" | sed 's/-signed\.apk$//')
-         else
-          # 不是签名文件，直接移除扩展名
-           base_name="${original_filename%.apk}"
-         fi
+          echo "🏷️ 原始文件名: $original_filename"
+          echo "🏷️ 提取的版本号: $version"
+             
+          # 更精确地提取基础文件名（不包含版本号和-signed后缀）
+          if [[ "$original_filename" == *"arm64-v8a"* ]]; then
+           base_name="Sesame-TK-arm64-v8a"
+          elif [[ "$original_filename" == *"armeabi-v7a"* ]]; then
+           base_name="Sesame-TK-armeabi-v7a"
+          else
+           # 通用方法：移除版本号、架构标识和-signed后缀
+           base_name=$(echo "$original_filename" | sed -E 's/(Sesame-TK)[-a-z0-9]*(-[a-z0-9_]+)?.apk/\1/')
+          fi
     
-         # 构建新文件名
-         new_name="${base_name}${version}-signed.apk"
-         new_path="$(dirname "$original_apk")/$new_name"
+          # 构建新文件名
+          new_name="${base_name}-${version}-signed.apk"
+          new_path="$(dirname "$original_apk")/$new_name"
     
-         # 确保新旧文件名不同
-         if [ "$original_apk" = "$new_path" ]; then
-           echo "⚠️ 原始文件和新文件路径相同，添加额外标识"
-           new_name="${base_name}${version}-release-signed.apk"
-           new_path="$(dirname "$original_apk")/$new_name"
-         fi
+          echo "🔄 将 $original_filename 重命名为 $new_name"
     
-         # 执行重命名
-         echo "🔄 将 $original_filename 重命名为 $new_name"
-         mv "$original_apk" "$new_path"
+          # 执行重命名
+          mv "$original_apk" "$new_path"
     
-         # 验证重命名是否成功
-         if [ ! -f "$new_path" ]; then
-           echo "❌ 重命名失败: $new_path 不存在"
-           ls -la "$(dirname "$original_apk")"
+          # 验证重命名是否成功
+          if [ ! -f "$new_path" ]; then
+            echo "❌ 重命名失败: $new_path 不存在"
+          ls -la "$(dirname "$original_apk")"
            exit 1
-         fi
-    
-         echo "✅ 重命名成功: $new_name"
-         echo "renamed_apk=$new_path" >> $GITHUB_OUTPUT
+          fi
+             
+          echo "✅ 重命名成功: $new_name"
+          echo "renamed_apk=$new_path" >> $GITHUB_OUTPUT
     
       - name: 🚀 Upload APK - arm64-v8a
         uses: actions/upload-artifact@v4
