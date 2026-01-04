@@ -770,7 +770,7 @@ class AntFarm : ModelTask() {
             tc.stop()
         } catch (e: CancellationException) {
             // 协程取消是正常现象，不记录为错误
-            Log.debug(TAG, "AntFarm 协程被取消")
+             Log.record(TAG, "AntFarm 协程被取消")
             throw e  // 必须重新抛出以保证取消机制正常工作
         } catch (t: Throwable) {
             Log.printStackTrace(TAG, "AntFarm.start.run err:",t)
@@ -885,7 +885,7 @@ class AntFarm : ModelTask() {
                 .save(UserMap.currentUid)
         } catch (e: CancellationException) {
             // 协程取消异常必须重新抛出，不能吞掉
-            Log.debug(TAG, "paradiseCoinExchangeBenefit 协程被取消")
+             Log.record(TAG, "paradiseCoinExchangeBenefit 协程被取消")
             throw e
         } catch (t: Throwable) {
             Log.printStackTrace(TAG, "paradiseCoinExchangeBenefit err:",t)
@@ -1846,7 +1846,7 @@ class AntFarm : ModelTask() {
             } while (true)
         } catch (e: CancellationException) {
             // 协程取消异常必须重新抛出，不能吞掉
-            Log.debug(TAG, "recordFarmGame 协程被取消")
+             Log.record(TAG, "recordFarmGame 协程被取消")
             throw e
         } catch (t: Throwable) {
             Log.printStackTrace(TAG, "recordFarmGame err:",t)
@@ -2190,7 +2190,7 @@ class AntFarm : ModelTask() {
             } while (doubleCheck && !isFeedFull) // 如果饲料槽已满，不再进行双重检查
         } catch (e: CancellationException) {
             // 协程取消异常必须重新抛出，不能吞掉
-            Log.debug(TAG, "receiveFarmAwards 协程被取消")
+             Log.record(TAG, "receiveFarmAwards 协程被取消")
             throw e
         } catch (t: Throwable) {
             Log.printStackTrace(TAG, "receiveFarmAwards 错误:", t)
@@ -2596,7 +2596,7 @@ class AntFarm : ModelTask() {
             }
         } catch (e: CancellationException) {
             // 协程取消异常必须重新抛出，不能吞掉
-            Log.debug(TAG, "feedFriend 协程被取消")
+             Log.record(TAG, "feedFriend 协程被取消")
             throw e
         } catch (t: Throwable) {
             Log.printStackTrace(TAG, "feedFriendAnimal err:", t)
@@ -2897,7 +2897,7 @@ class AntFarm : ModelTask() {
             }
         } catch (e: CancellationException) {
             // 协程取消异常必须重新抛出，不能吞掉
-            Log.debug(TAG, "cook 协程被取消")
+             Log.record(TAG, "cook 协程被取消")
             throw e
         } catch (t: Throwable) {
             Log.printStackTrace(TAG, "cook err:",t)
@@ -2984,7 +2984,7 @@ class AntFarm : ModelTask() {
             }
         } catch (e: CancellationException) {
             // 协程取消异常必须重新抛出，不能吞掉
-            Log.debug(TAG, "visit 协程被取消")
+             Log.record(TAG, "visit 协程被取消")
             throw e
         } catch (t: Throwable) {
             Log.printStackTrace(TAG, "visit err:",t)
@@ -3023,7 +3023,7 @@ class AntFarm : ModelTask() {
             }
         } catch (e: CancellationException) {
             // 协程取消异常必须重新抛出，不能吞掉
-            Log.debug(TAG, "visitFriend 协程被取消")
+             Log.record(TAG, "visitFriend 协程被取消")
             throw e
         } catch (t: Throwable) {
             Log.printStackTrace(TAG, "visitFriend err:",t)
@@ -3163,7 +3163,7 @@ class AntFarm : ModelTask() {
             }
         } catch (e: CancellationException) {
             // 协程取消异常必须重新抛出，不能吞掉
-            Log.debug(TAG, "queryChickenDiaryList 协程被取消")
+             Log.record(TAG, "queryChickenDiaryList 协程被取消")
             throw e
         } catch (t: Throwable) {
             hasPreviousMore = false
@@ -3212,7 +3212,7 @@ class AntFarm : ModelTask() {
             }
         } catch (e: CancellationException) {
             // 协程取消异常必须重新抛出，不能吞掉
-            Log.debug(TAG, "doChickenDiary 协程被取消")
+             Log.record(TAG, "doChickenDiary 协程被取消")
             throw e
         } catch (e: Exception) {
             Log.printStackTrace(TAG, "doChickenDiary err:",e)
@@ -3536,7 +3536,7 @@ class AntFarm : ModelTask() {
             }
         } catch (e: CancellationException) {
             // 协程取消异常必须重新抛出，不能吞掉
-            Log.debug(TAG, "drawGameCenterAward 协程被取消")
+             Log.record(TAG, "drawGameCenterAward 协程被取消")
             throw e
         } catch (t: Throwable) {
             Log.printStackTrace(TAG, "queryChickenDiaryList err:",t)
@@ -4005,7 +4005,7 @@ class AntFarm : ModelTask() {
             ResChecker.checkRes(TAG, jo)
         } catch (e: CancellationException) {
             // 协程取消异常必须重新抛出，不能吞掉
-            Log.debug(TAG, "syncFamilyStatusIntimacy 协程被取消")
+             Log.record(TAG, "syncFamilyStatusIntimacy 协程被取消")
             throw e
         } catch (t: Throwable) {
             Log.printStackTrace(TAG, "syncFamilyStatus err:",t)
@@ -4046,7 +4046,7 @@ class AntFarm : ModelTask() {
             }
         } catch (e: CancellationException) {
             // 协程取消异常必须重新抛出，不能吞掉
-            Log.debug(TAG, "inviteFriendVisitFamily 协程被取消")
+             Log.record(TAG, "inviteFriendVisitFamily 协程被取消")
             throw e
         } catch (t: Throwable) {
             Log.printStackTrace(TAG, "inviteFriendVisitFamily err:",t)
@@ -4101,7 +4101,7 @@ class AntFarm : ModelTask() {
             }
         } catch (e: CancellationException) {
             // 协程取消异常必须重新抛出，不能吞掉
-            Log.debug(TAG, "familyBatchInviteP2PTask 协程被取消")
+             Log.record(TAG, "familyBatchInviteP2PTask 协程被取消")
             throw e
         } catch (t: Throwable) {
             Log.printStackTrace(TAG, "familyBatchInviteP2PTask err:",t)
@@ -4156,7 +4156,7 @@ class AntFarm : ModelTask() {
             }
         } catch (e: CancellationException) {
             // 协程取消异常必须重新抛出，不能吞掉
-            Log.debug(TAG, "familyDrawTask 协程被取消")
+             Log.record(TAG, "familyDrawTask 协程被取消")
             throw e
         } catch (t: Throwable) {
             Log.printStackTrace(TAG, "familyDrawTask err:",t)
@@ -4203,7 +4203,7 @@ class AntFarm : ModelTask() {
             }
         } catch (e: CancellationException) {
             // 协程取消异常必须重新抛出，不能吞掉
-            Log.debug(TAG, "familyDraw 协程被取消")
+             Log.record(TAG, "familyDraw 协程被取消")
             throw e
         } catch (t: Throwable) {
             Log.printStackTrace(TAG, "familyDraw err:",t)
@@ -4270,7 +4270,7 @@ class AntFarm : ModelTask() {
             }
         } catch (e: CancellationException) {
             // 协程取消异常必须重新抛出，不能吞掉
-            Log.debug(TAG, "familyEatTogether 协程被取消")
+             Log.record(TAG, "familyEatTogether 协程被取消")
             throw e
         } catch (t: Throwable) {
             Log.printStackTrace(TAG, "familyEatTogether err:",t)
@@ -4285,7 +4285,7 @@ class AntFarm : ModelTask() {
             }
         } catch (e: CancellationException) {
             // 协程取消异常必须重新抛出，不能吞掉
-            Log.debug(TAG, "familyDrawSignReceiveFarmTaskAward 协程被取消")
+             Log.record(TAG, "familyDrawSignReceiveFarmTaskAward 协程被取消")
             throw e
         } catch (t: Throwable) {
             Log.printStackTrace(TAG, "familyDrawSignReceiveFarmTaskAward err:",t)
@@ -4311,7 +4311,7 @@ class AntFarm : ModelTask() {
             }
         } catch (e: CancellationException) {
             // 协程取消异常必须重新抛出，不能吞掉
-            Log.debug(TAG, "queryRecentFarmFood 协程被取消")
+             Log.record(TAG, "queryRecentFarmFood 协程被取消")
             throw e
         } catch (t: Throwable) {
             Log.printStackTrace(TAG, "queryRecentFarmFood err:",t)
@@ -4351,7 +4351,7 @@ class AntFarm : ModelTask() {
             }
         } catch (e: CancellationException) {
             // 协程取消异常必须重新抛出，不能吞掉
-            Log.debug(TAG, "familyFeedFriendAnimal 协程被取消")
+             Log.record(TAG, "familyFeedFriendAnimal 协程被取消")
             throw e
         } catch (t: Throwable) {
             Log.printStackTrace(TAG, "familyFeedFriendAnimal err:",t)

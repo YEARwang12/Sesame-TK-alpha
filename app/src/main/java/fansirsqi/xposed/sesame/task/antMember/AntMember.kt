@@ -10,6 +10,7 @@ import fansirsqi.xposed.sesame.data.Status.Companion.memberSignInToday
 import fansirsqi.xposed.sesame.data.Status.Companion.setFlagToday
 import fansirsqi.xposed.sesame.data.StatusFlags
 import fansirsqi.xposed.sesame.entity.MemberBenefit.Companion.getList
+import fansirsqi.xposed.sesame.hook.internal.LocationHelper.requestLocation
 import fansirsqi.xposed.sesame.hook.internal.SecurityBodyHelper.getSecurityBodyData
 import fansirsqi.xposed.sesame.model.BaseModel.Companion.energyTime
 import fansirsqi.xposed.sesame.model.BaseModel.Companion.modelSleepTime
@@ -22,20 +23,20 @@ import fansirsqi.xposed.sesame.task.ModelTask
 import fansirsqi.xposed.sesame.task.TaskCommon
 import fansirsqi.xposed.sesame.task.antOrchard.AntOrchardRpcCall.orchardSpreadManure
 import fansirsqi.xposed.sesame.util.CoroutineUtils
-
 import fansirsqi.xposed.sesame.util.Log
+import fansirsqi.xposed.sesame.util.Log.record
 import fansirsqi.xposed.sesame.util.ResChecker
 import fansirsqi.xposed.sesame.util.TimeUtil
 import fansirsqi.xposed.sesame.util.maps.IdMapManager
 import fansirsqi.xposed.sesame.util.maps.MemberBenefitsMap
 import fansirsqi.xposed.sesame.util.maps.UserMap
-import java.util.*
-import java.util.regex.Pattern
-import kotlin.math.max
 import kotlinx.coroutines.*
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
+import java.util.*
+import java.util.regex.Pattern
+import kotlin.math.max
 
 class AntMember : ModelTask() {
     override fun getName(): String {
@@ -185,6 +186,10 @@ class AntMember : ModelTask() {
         runBlocking {
             try {
                 Log.record(TAG, "执行开始-$name")
+                // 异步获取位置信息
+                requestLocation { locationJson: JSONObject? ->
+                    Log.other(TAG, "📍 获取到位置信息: $locationJson")
+                }
 
                 // 并行执行独立任务
                 val deferredTasks = mutableListOf<Deferred<Unit>>()
@@ -289,6 +294,8 @@ class AntMember : ModelTask() {
                         }
                     })
                 }
+
+
 
 
                 if (credit2101!!.value) {
