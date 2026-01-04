@@ -70,7 +70,18 @@ jobs:
               echo "signed_arm64=$file" >> $GITHUB_OUTPUT
             fi
           done
-      
+
+      - name: 🏷️ 重命名APK文件
+        id: rename_apk
+        run: |
+         original_apk="${{ steps.extract_apks.outputs.signed_arm64 }}"
+         version="${{ github.ref_name }}"
+         base_name=$(basename "$original_apk" | sed 's/-[0-9]*\.[0-9]*\.[0-9]*-signed\.apk//')
+         new_name="${base_name}-${version}-signed.apk"
+         new_path="$(dirname "$original_apk")/$new_name"
+         mv "$original_apk" "$new_path"
+         echo "renamed_apk=$new_path" >> $GITHUB_OUTPUT
+    
       - name: 🚀 Upload APK - arm64-v8a
         uses: actions/upload-artifact@v4
         with:
