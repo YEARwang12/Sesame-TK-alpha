@@ -1986,27 +1986,36 @@ class AntFarm : ModelTask() {
 
                 if (Status.hasFlagToday("farm::task::limit::$bizKey")) continue
                 // 2. 执行 TODO 任务
-                if (TaskStatus.TODO.name == taskStatus) {
-                    when (bizKey) {
-                        "VIDEO_TASK" -> {
-                            // --- 视频任务专项逻辑 ---
-                            Log.record(TAG, "开始处理视频任务: $title ($bizKey)")
-                            handleVideoTask(bizKey, title)
-                        }
-                        "ANSWER" -> {
-                            // --- 答题任务专项逻辑 ---
-                            if (!Status.hasFlagToday(CACHED_FLAG)) {
-                                answerQuestion("100")
+                when (taskStatus) {
+                    TaskStatus.TODO.name -> {
+                        when (bizKey) {
+                            "VIDEO_TASK" -> {
+                                // --- 视频任务专项逻辑 ---
+                                Log.record(TAG, "开始处理视频任务: $title ($bizKey)")
+                                handleVideoTask(bizKey, title)
+                            }
+                            "ANSWER" -> {
+                                // --- 答题任务专项逻辑 ---
+                                if (!Status.hasFlagToday(CACHED_FLAG)) {
+                                    answerQuestion("100")
+                                }
+                            }
+                            else -> {
+                                // --- 普通任务通用逻辑 ---
+                                Log.record(TAG, "开始处理庄园任务: $title ($bizKey)")
+                                handleGeneralTask(bizKey, title)
                             }
                         }
-                        else -> {
-                            // --- 普通任务通用逻辑 ---
-                            Log.record(TAG, "开始处理庄园任务: $title ($bizKey)")
-                            handleGeneralTask(bizKey, title)
+                    }
+                    TaskStatus.FINISHED.name, TaskStatus.RECEIVED.name -> {
+                        if (bizKey != "ANSWER") {
+                            delay(1500)
+                            continue
                         }
                     }
-                }else{
-                    Log.record(TAG, "跳过非TODO任务: $title ($bizKey) 状态: $taskStatus")
+                    else -> {
+                        Log.record(TAG, "跳过非TODO任务: $title ($bizKey) 状态: $taskStatus")
+                    }
                 }
                 // 3. 额外处理某些即便不是 TODO 状态也可能需要检查的任务（如答题补漏）
                 if ("ANSWER" == bizKey && !Status.hasFlagToday(CACHED_FLAG)) {
@@ -2081,12 +2090,23 @@ class AntFarm : ModelTask() {
                 if (ResChecker.checkRes(TAG + "查询庄园任务失败:", jo)) {
                     val farmTaskList = jo.getJSONArray("farmTaskList")
                     val signList = jo.getJSONObject("signList")
-                    if (!Status.hasFlagToday("farm::signed") && signRegardless!!.value) {
+                    val needFarmGame = recordFarmGame!!.value && !Status.hasFlagToday("farm::farmGameFinished")
+
+                    // 庄园签到逻辑
+                    if (!Status.hasFlagToday("farm::signed")) {
                         syncAnimalStatus(ownerFarmId)
+                        val timeReached = TimeUtil.isNowAfterOrCompareTimeStr("1400")
                         val foodSpace = foodStockLimit - foodStock
-                        val result = farmSign(signList)
-                        if (result && foodSpace < 180) {
-                            Log.farm("签到实际获得饲料: ${foodSpace}g (因饲料空间不足)")
+                        val haveEnoughSpace = if (needFarmGame) foodSpace > 180 else foodSpace >= 180
+                        val shouldSign = signRegardless!!.value || timeReached || haveEnoughSpace
+
+                        if (shouldSign) {
+                            if (farmSign(signList) && foodSpace < 180) {
+                                Log.farm("签到实际获得饲料: ${foodSpace}g (因饲料空间不足)")
+                            }
+                        }  else {
+                            val msg = if (needFarmGame) "预留游戏改分的饲料空间，庄园暂不执行签到" else "饲料空间不足180g，庄园暂不签到"
+                            Log.record(TAG, "${msg}。14点后会强制签到；如已签到请忽略")
                         }
                     }
                     for (i in 0..<farmTaskList.length()) {
@@ -2117,18 +2137,11 @@ class AntFarm : ModelTask() {
                                     break
                                 }
                                 // 针对连续使用加速卡时的领取饲料逻辑，留180g以内（含180g）的空间。如果游戏改分未完成，比如饲料正好是1620g时（上限1800g），不领取饲料。(同时确认开启游戏改分)
-                                if ((!Status.hasFlagToday("farm::farmGameFinished")) && (foodStock >= foodStockLimit - GAME_REWARD_MAX) && recordFarmGame!!.value) {
+                                if (needFarmGame && foodStock >= (foodStockLimit - GAME_REWARD_MAX)) {
                                     unreceiveTaskAward++
-                                    Log.farm("当日游戏改分未完成，预留${GAME_REWARD_MAX}饲料空间，现有饲料${foodStock}g")
+                                    Log.farm("当日游戏改分未完成，预留最多${GAME_REWARD_MAX}饲料空间，现有饲料${foodStock}g")
                                     isFeedFull = true
                                     break
-                                }
-                                if (!Status.hasFlagToday("farm::signed") && !signRegardless!!.value) {
-                                    if (foodStockLeft >= 180 || TimeUtil.isNowAfterOrCompareTimeStr("1400")) {
-                                        farmSign(signList)
-                                    } else {
-                                        Log.record("饲料空间不足180g，庄园暂不签到，如已签到请忽略")
-                                    }
                                 }
                                 if (awardCount > foodStockLeft) {
                                     if (!isNight) {
@@ -2142,7 +2155,7 @@ class AntFarm : ModelTask() {
                                         isFeedFull = true
                                         break
                                     } else {
-                                        Log.record("20点后领取任务：${taskTitle} 的饲料奖励 ${awardCount}g后饲料上限也将继续领取饲料，现有饲料${foodStock}g")
+                                        Log.record("20点后领取任务：${taskTitle} 的饲料奖励 ${awardCount}g后饲料将超过上限，现有饲料${foodStock}g，溢出${awardCount - foodStockLeft}g")
                                     }
                                 }
                             }
@@ -2447,8 +2460,10 @@ class AntFarm : ModelTask() {
             }
         }
         // 这里打印没有连续使用8张加速卡的原因
-        if (exitReason == "CONDITION_NOT_MET") {
-            Log.farm("剩余可加速的时间少于设置的${remainingTimeValue}分钟，将在下次喂食后再次使用加速卡")
+        when(exitReason){
+            "CONDITION_NOT_MET" -> Log.farm("剩余可加速的时间少于设置的${remainingTimeValue}分钟，将在下次喂食后再次使用加速卡")
+            "SINGLE_USE_MODE" -> Log.farm("开启了“仅在满状态使用加速卡")
+            "EMOTION_NOT_MAX" -> Log.farm("开启了“仅心情满值时加速”，且当前心情不为 100")
         }
         Log.record(TAG, "加速卡内部⏩最终 isUseAccelerateTool=$isUseAccelerateTool")
         return isUseAccelerateTool
@@ -2472,7 +2487,7 @@ class AntFarm : ModelTask() {
                             jo = JSONObject(s)
                             memo = jo.getString("memo")
                             if (ResChecker.checkRes(TAG, jo)) {
-                                Log.farm("使用道具🎭[" + toolType.nickName() + "]#剩余" + (toolCount - 1) + "张")
+                                Log.farm("使用了道具🎭[" + toolType.nickName() + "]#剩余" + (toolCount - 1) + "张")
                                 listFarmTool()
                                 return true
                             } else {
