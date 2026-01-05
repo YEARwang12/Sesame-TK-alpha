@@ -205,6 +205,7 @@ class AntFarm : ModelTask() {
      */
     private var receiveFarmTaskAward: BooleanModelField? = null
     private var useAccelerateTool: BooleanModelField? = null
+    private var ignoreAcceLimit: BooleanModelField? = null
     private var useBigEaterTool: BooleanModelField? = null // ✅ 新增加饭卡
     private var useAccelerateToolContinue: BooleanModelField? = null
     private var useAccelerateToolWhenMaxEmotion: BooleanModelField? = null
@@ -419,6 +420,12 @@ class AntFarm : ModelTask() {
                 "加速卡 | 连续使用",
                 false
             ).also { useAccelerateToolContinue = it })
+        modelFields.addField(
+            BooleanModelField(
+                "ignoreAcceLimit",
+                "按设置的时间进行游戏改分和抽抽乐",
+                false
+            ).also { ignoreAcceLimit = it })
         modelFields.addField(
             IntegerModelField("remainingTime", "饲料剩余时间大于多少时直接使用加速（分钟）（-1关闭）", 50).also { remainingTime = it }
         )
@@ -1871,7 +1878,21 @@ class AntFarm : ModelTask() {
         val isAccelEnabled = useAccelerateTool!!.value
         val isAccelLimitReached = Status.hasFlagToday("farm::accelerateLimit") || !Status.canUseAccelerateTool()
         val isInsideTimeRange = farmGameTime!!.value.any { TimeUtil.checkNowInTimeRange(it) }
+        val ignoreAcceLimitMode = !isAccelEnabled || ignoreAcceLimit!!.value
+
         when {
+            // 未启用加速卡或选择按时间进行游戏改分和抽抽乐，且处于用户设定的时间段内
+            ignoreAcceLimitMode -> {
+                if (isInsideTimeRange) {
+                    if (Status.hasFlagToday("farm::farmTaskFinished")){
+                        receiveFarmAwards()
+                    }
+                    playAllFarmGames()
+                } else {
+                    Log.record("当前处于按时游戏改分模式，未到设定时间，跳过")
+                }
+            }
+
             // 开启了使用加速卡，且加速卡已达上限或没有加速卡
             isAccelEnabled && (isAccelLimitReached || accelerateToolCount <= 0) -> {
                 syncAnimalStatus(ownerFarmId)
@@ -1903,14 +1924,6 @@ class AntFarm : ModelTask() {
                 }
             }
 
-            // 未启用加速卡，且处于用户设定的时间段内
-            !isAccelEnabled && isInsideTimeRange -> {
-                if (Status.hasFlagToday("farm::farmTaskFinished")){
-                    receiveFarmAwards()
-                }
-                playAllFarmGames()
-            }
-
             // 加速卡还没用完，等待加速卡用完
             isAccelEnabled && accelerateToolCount > 0 -> {
                 Log.farm("加速卡有${accelerateToolCount}张，已使用${Status.INSTANCE.useAccelerateToolCount}张，" +
@@ -1935,18 +1948,22 @@ class AntFarm : ModelTask() {
         val isGameFinished = Status.hasFlagToday("farm::farmGameFinished")
         val isGameEnabled = recordFarmGame!!.value
         val isTimeReached = TaskTimeChecker.isTimeReached(enableChouchouleTime?.value, "0900")
+        val ignoreAcceLimitMode = !isGameEnabled || ignoreAcceLimit!!.value
+
         when {
+            ignoreAcceLimitMode -> {
+                if (isTimeReached) {
+                    playChouChouLe()
+                } else {
+                    Log.record(TAG, "当前处于按时抽抽乐模式，未到设定时间，跳过")
+                }
+            }
+
             // 游戏改分已完成直接执行抽抽乐
             isGameFinished -> {
                 playChouChouLe()
             }
-            // 未开启游戏改分，且到达了设定的时间（原逻辑）
-            !isGameEnabled && isTimeReached -> {
-                playChouChouLe()
-            }
-            !isGameEnabled && !isTimeReached -> {
-                Log.record(TAG, "未开启游戏改分且抽抽乐未到设置的执行时间(${enableChouchouleTime?.value ?: "0900"})，跳过")
-            }
+
             // 游戏改分任务尚未完成
             isGameEnabled && !isGameFinished -> {
                 Log.farm("游戏改分还没有完成，暂不执行抽抽乐")
@@ -2137,7 +2154,7 @@ class AntFarm : ModelTask() {
                                     break
                                 }
                                 // 针对连续使用加速卡时的领取饲料逻辑，留180g以内（含180g）的空间。如果游戏改分未完成，比如饲料正好是1620g时（上限1800g），不领取饲料。(同时确认开启游戏改分)
-                                if (needFarmGame && foodStock >= (foodStockLimit - GAME_REWARD_MAX)) {
+                                if (!ignoreAcceLimit!!.value && (needFarmGame && foodStock >= (foodStockLimit - GAME_REWARD_MAX))) {
                                     unreceiveTaskAward++
                                     Log.farm("当日游戏改分未完成，预留最多${GAME_REWARD_MAX}饲料空间，现有饲料${foodStock}g")
                                     isFeedFull = true

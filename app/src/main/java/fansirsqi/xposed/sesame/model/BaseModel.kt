@@ -1,7 +1,6 @@
 package fansirsqi.xposed.sesame.model
 
 import fansirsqi.xposed.sesame.BuildConfig
-import fansirsqi.xposed.sesame.hook.CaptchaHook.updateHooks
 import fansirsqi.xposed.sesame.model.modelFieldExt.BooleanModelField
 import fansirsqi.xposed.sesame.model.modelFieldExt.ChoiceModelField
 import fansirsqi.xposed.sesame.model.modelFieldExt.IntegerModelField
@@ -33,7 +32,7 @@ class BaseModel : Model() {
     override fun getEnableFieldName(): String {
         return "启用模块"
     }
-
+/*
     override fun boot(classLoader: ClassLoader?) {
         // 配置已加载，更新验证码Hook状态
         try {
@@ -45,7 +44,7 @@ class BaseModel : Model() {
             Log.printStackTrace(TAG, "❌ 验证码Hook配置同步失败", t)
         }
     }
-
+*/
     override fun getFields(): ModelFields {
         val modelFields = ModelFields()
         modelFields.addField(stayAwake) //是否保持唤醒状态
@@ -70,7 +69,7 @@ class BaseModel : Model() {
         }
 
         modelFields.addField(batteryPerm) //是否申请支付宝的后台运行权限
-        modelFields.addField(enableCaptchaUIHook) //验证码UI层拦截
+        //modelFields.addField(enableCaptchaUIHook) //验证码UI层拦截
         modelFields.addField(recordLog) //是否记录record日志
         modelFields.addField(runtimeLog) //是否记录runtime日志
         modelFields.addField(showToast) //是否显示气泡提示
@@ -196,10 +195,9 @@ class BaseModel : Model() {
 
         /**
          * 验证码UI层拦截（阻止对话框显示）
-         */
         @Getter
         val enableCaptchaUIHook: BooleanModelField = BooleanModelField("enableCaptchaUIHook", "🛡️拒绝访问VPN弹窗拦截", false)
-
+         */
 
         /**
          * 是否记录record日志

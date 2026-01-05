@@ -3,6 +3,7 @@ package fansirsqi.xposed.sesame.task
 import android.annotation.SuppressLint
 import fansirsqi.xposed.sesame.hook.ApplicationHook
 import fansirsqi.xposed.sesame.model.BaseModel
+import fansirsqi.xposed.sesame.model.CustomSettings
 import fansirsqi.xposed.sesame.model.Model
 import fansirsqi.xposed.sesame.util.Log
 import fansirsqi.xposed.sesame.util.TimeUtil
@@ -14,17 +15,20 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.coroutines.coroutineContext
+import fansirsqi.xposed.sesame.data.Status
 
 /**
  * 基于协程的任务执行器类
- * 
+ *
  * 该类替代原有的TaskRunner，提供基于Kotlin协程的任务执行能力。
  * 仅支持顺序执行模式，确保任务执行的稳定性和可靠性。
- * 
+ *
  * 主要特性:
  * 1. **协程驱动**: 使用Kotlin协程进行任务调度和执行
  * 2. **结构化并发**: 通过协程作用域管理任务生命周期
@@ -37,7 +41,7 @@ import java.util.concurrent.atomic.AtomicInteger
 class CoroutineTaskRunner(allModels: List<Model>) {
     companion object {
         private const val TAG = "CoroutineTaskRunner"
-        
+
         /**
          * 任务超时时间配置（毫秒）
          * 优化后的固定超时时间，足够各类任务完成
@@ -47,7 +51,7 @@ class CoroutineTaskRunner(allModels: List<Model>) {
          * - 其他：一般任务都能在此时间内完成
          */
         private const val DEFAULT_TASK_TIMEOUT = 10 * 60 * 1000L // 10分钟统一超时
-        
+
         /**
          * 超时白名单：这些任务超时后不会被停止或恢复
          * 主要用于有后台长期运行任务的模块（如森林蹲点、庄园定时任务）
@@ -57,16 +61,16 @@ class CoroutineTaskRunner(allModels: List<Model>) {
             "庄园",      // 庄园有定时任务，需要长期运行
             "运动"       // 运动任务执行时间较长
         )
-        
+
         // 恢复任务的超时设置（毫秒）- 只用于日志提示，不会取消恢复任务
         private const val RECOVERY_TIMEOUT = 30_000L // 增加到30秒
-        
+
         // 恢复前的延迟时间（毫秒）
         private const val RECOVERY_DELAY = 3_000L // 增加到3秒，给任务更多清理时间
-        
+
         // 最大恢复尝试次数
         private const val MAX_RECOVERY_ATTEMPTS = 3 // 增加到3次
-        
+
         // 恢复任务的最大运行时间（毫秒）- 超过此时间后任务会被自动标记为完成
         private const val MAX_RECOVERY_RUNTIME = 10 * 60 * 1000L // 10分钟
     }
@@ -75,10 +79,10 @@ class CoroutineTaskRunner(allModels: List<Model>) {
     private val successCount = AtomicInteger(0)
     private val failureCount = AtomicInteger(0)
     private val skippedCount = AtomicInteger(0)
-    
+
     // 记录任务恢复尝试次数
     private val recoveryAttempts = ConcurrentHashMap<String, Int>()
-    
+
     // 性能监控指标
     private val taskExecutionTimes = ConcurrentHashMap<String, Long>()
     private val coroutineCreationCount = AtomicInteger(0)
@@ -86,8 +90,8 @@ class CoroutineTaskRunner(allModels: List<Model>) {
     
     // 执行器协程作用域
     private val runnerScope = CoroutineScope(
-        Dispatchers.Default + 
-        SupervisorJob() + 
+        Dispatchers.Default +
+        SupervisorJob() +
         CoroutineName("CoroutineTaskRunner")
     )
 
@@ -97,7 +101,7 @@ class CoroutineTaskRunner(allModels: List<Model>) {
 
     /**
      * 启动任务执行流程（协程版本）
-     * 
+     *
      * @param isFirst 是否为首次执行（用于重置统计计数器）
      * @param rounds 执行轮数，默认从BaseModel配置读取
      */
@@ -109,11 +113,19 @@ class CoroutineTaskRunner(allModels: List<Model>) {
             if (isFirst) {
                 resetCounters()
             }
-            
+
+            // 单次运行的逻辑
+            CustomSettings.loadForTaskRunner()
+            // 在 run 开始时获取一次状态，并开启日志打印
+            val status = CustomSettings.getOnceDailyStatus(enableLog = true)
             val startTime = System.currentTimeMillis()
-            
+
             try {
-                executeTasksWithMode(rounds)
+                executeTasksWithMode(rounds, status)
+                // 设置今日已完成标志，标记一次完整的任务执行流程已结束
+                if (CustomSettings.onlyOnceDaily.value) {
+                    Status.setFlagToday("OnceDaily::Finished")
+                }
             } catch (e: Exception) {
                 Log.printStackTrace(TAG, "run err", e)
             } finally {
@@ -137,25 +149,47 @@ class CoroutineTaskRunner(allModels: List<Model>) {
      * 执行任务（仅支持顺序执行）
      */
     private suspend fun executeTasksWithMode(
-        rounds: Int
+        rounds: Int, status: CustomSettings.OnceDailyStatus
     ) {
         // 无论传入什么模式，都使用顺序执行
-        executeSequentialTasks(rounds)
+        executeSequentialTasks(rounds, status)
     }
 
     /**
      * 顺序执行所有任务
      */
-    private suspend fun executeSequentialTasks(rounds: Int) {
+    private suspend fun executeSequentialTasks(rounds: Int, status: CustomSettings.OnceDailyStatus) {
         val configuredRounds = BaseModel.taskExecutionRounds.value
         Log.record(TAG, "⚙️ 任务执行配置：传入${rounds}轮，BaseModel配置${configuredRounds}轮（用户可在基础设置中调整）")
-        
+
+        // 使用传入的 status 进行判定
+        if (status.isEnabledOverride && status.isFinishedToday) {
+            val customBlacklistedNames = taskList.filter { it.isEnable && CustomSettings.isOnceDailyBlackListed(it.getName(), status) }
+                .map { it.getName() ?: "未知" }
+            if (customBlacklistedNames.isNotEmpty()) {
+                Log.record("🚫 [每日单次运行] 模式已生效，将跳过以下已开启且完成过一次的项目: ${customBlacklistedNames.joinToString(", ")}")
+            }
+        }
+
         for (round in 1..rounds) {
             val roundStartTime = System.currentTimeMillis()
-            val enabledTasksInRound = taskList.filter { it.isEnable }
+            coroutineContext.ensureActive()
             
+            // 过滤启用且不在黑名单/自定义排除名单的任务
+            val enabledTasksInRound = taskList.filter { task ->
+                val name = task.getName()
+                // ✨ 传入 status 避免内部重新计算
+                task.isEnable && !CustomSettings.isOnceDailyBlackListed(name, status)
+            }
+
+            // 统计被排除的任务（用于准确汇总）
+            val allEnabledTasksCount = taskList.count { it.isEnable }
+            val excludedCount = allEnabledTasksCount - enabledTasksInRound.size
+            if (excludedCount > 0) {
+                skippedCount.addAndGet(excludedCount)
+            }
             Log.record(TAG, "🔄 开始顺序执行第${round}/${rounds}轮任务，共${enabledTasksInRound.size}个启用任务")
-            
+
             for ((index, task) in enabledTasksInRound.withIndex()) {
                 val taskName = task.getName()
                 Log.record(TAG, "📍 第${round}轮任务进度: ${index + 1}/${enabledTasksInRound.size} - ${taskName}")
@@ -177,7 +211,7 @@ class CoroutineTaskRunner(allModels: List<Model>) {
     private suspend fun executeTaskWithTimeout(task: ModelTask, round: Int) {
         val taskId = "${task.getName()}-Round$round"
         val taskStartTime = System.currentTimeMillis()
-        
+
         // 所有任务统一使用10分钟超时
         // 森林和庄园的蹲点/定时任务会在后台独立协程中运行，不影响主流程
         val effectiveTimeout = DEFAULT_TASK_TIMEOUT
@@ -189,7 +223,7 @@ class CoroutineTaskRunner(allModels: List<Model>) {
             val isWhitelistTask = TIMEOUT_WHITELIST.contains(taskName)
             executeTaskWithGracefulTimeout(task, round, taskStartTime, taskId, effectiveTimeout)
             val executionTime = System.currentTimeMillis() - taskStartTime
-            
+
             // 根据任务类型输出不同的完成日志
             if (isWhitelistTask && executionTime >= effectiveTimeout) {
                 // 白名单任务超时但继续在后台运行
@@ -215,16 +249,16 @@ class CoroutineTaskRunner(allModels: List<Model>) {
                 Log.error(TAG, "任务[$taskId]已达到最大恢复尝试次数($MAX_RECOVERY_ATTEMPTS)，放弃恢复")
                 return
             }
-            
+
             // 增加恢复尝试计数
             recoveryAttempts[taskId] = attempts + 1
-            
+
             // 取消当前任务的所有协程
             task.stopTask()
-            
+
             // 短暂延迟后重新启动任务
             delay(RECOVERY_DELAY) // 等待3秒钟
-            
+
             try {
                 Log.record(TAG, "正在自动恢复任务[$taskId]，第${attempts + 1}次尝试")
                 // 强制重启任务
@@ -232,7 +266,7 @@ class CoroutineTaskRunner(allModels: List<Model>) {
                     force = true,
                     rounds = 1
                 )
-                
+
                 // 使用非阻塞方式等待任务完成
                 try {
                     // 创建监控协程，负责监控恢复任务的状态
@@ -243,7 +277,7 @@ class CoroutineTaskRunner(allModels: List<Model>) {
                             if (recoveryJob.isActive) {
                                 Log.record(TAG, "任务[$taskId]恢复执行已超过${RECOVERY_TIMEOUT/1000}秒，继续在后台运行")
                             }
-                            
+
                             // 监控最大运行时间
                             delay(MAX_RECOVERY_RUNTIME - RECOVERY_TIMEOUT)
                             if (recoveryJob.isActive) {
@@ -257,12 +291,12 @@ class CoroutineTaskRunner(allModels: List<Model>) {
                             // 监控协程被取消是正常的
                         }
                     }
-                    
+
                     // 等待恢复任务完成或超时任务触发
                     recoveryJob.invokeOnCompletion { cause ->
                         // 恢复任务完成后取消监控协程
                         monitorJob.cancel()
-                        
+
                         when (cause) {
                             null -> {
                                 // 任务正常完成
@@ -281,7 +315,7 @@ class CoroutineTaskRunner(allModels: List<Model>) {
                             }
                         }
                     }
-                    
+
                     // 不阻塞当前协程，让恢复任务在后台继续执行
                 } catch (e: Exception) {
                     Log.printStackTrace(TAG, "监控恢复任务时出错: ${e.message}",e)
@@ -298,9 +332,9 @@ class CoroutineTaskRunner(allModels: List<Model>) {
      * 支持用户配置的动态超时时间
      */
     private suspend fun executeTaskWithGracefulTimeout(
-        task: ModelTask, 
-        round: Int, 
-        taskStartTime: Long, 
+        task: ModelTask,
+        round: Int,
+        taskStartTime: Long,
         taskId: String,
         taskTimeout: Long
     ) {
@@ -310,7 +344,7 @@ class CoroutineTaskRunner(allModels: List<Model>) {
             executeTask(task, round)
             return
         }
-        
+
         try {
             withTimeout(taskTimeout) {
                 executeTask(task, round)
@@ -320,7 +354,7 @@ class CoroutineTaskRunner(allModels: List<Model>) {
             val currentTime = System.currentTimeMillis()
             val runningTime = currentTime - taskStartTime
             val taskName = task.getName() ?: ""
-            
+
             // 白名单任务：超时后直接跳过，不进入宽限期
             if (TIMEOUT_WHITELIST.contains(taskName)) {
                 Log.record(TAG, "⏰ 任务[$taskId]达到超时(${runningTime}ms)，在白名单中，跳过宽限期")
@@ -328,7 +362,7 @@ class CoroutineTaskRunner(allModels: List<Model>) {
                 // 不抛出异常，让外层正常处理（会标记为成功并继续下一任务）
                 return
             }
-            
+
             // 非白名单任务：检查是否还在运行，决定是否给宽限期
             Log.record(TAG, "⚠️ 任务[$taskId]达到基础超时(${runningTime}ms)，检查是否可以继续等待...")
             if (task.isRunning) {
@@ -370,13 +404,13 @@ class CoroutineTaskRunner(allModels: List<Model>) {
     private suspend fun executeTask(task: ModelTask, round: Int) {
         val taskName = task.getName()
         val taskStartTime = System.currentTimeMillis()
-        
+
         try {
             task.addRunCents()
 
             Log.record(TAG, "🎯 启动模块[${taskName}]第${round}轮执行...")
             logRecordCount.incrementAndGet() // 性能监控：记录日志调用次数
-            
+
             // 启动任务（使用新的协程接口）
             coroutineCreationCount.incrementAndGet() // 性能监控：协程创建计数
             val job = task.startTask(
@@ -401,7 +435,7 @@ class CoroutineTaskRunner(allModels: List<Model>) {
                     // 监控协程被取消是正常的
                 }
             }
-            
+
             // 等待任务完成
             try {
                 job.join()
@@ -409,22 +443,23 @@ class CoroutineTaskRunner(allModels: List<Model>) {
                 // 确保监控协程被取消
                 monitorJob.cancel()
             }
-            
+
             val executionTime = System.currentTimeMillis() - taskStartTime
             successCount.incrementAndGet()
-            
+
             // 性能监控：记录任务执行时间
             val taskId = "${taskName}-Round${round}"
             taskExecutionTimes[taskId] = executionTime
-            
+
             Log.record(TAG, "✅ 模块[${taskName}]第${round}轮执行成功，耗时: ${executionTime}ms")
             logRecordCount.incrementAndGet()
-            
-        } catch (_: CancellationException) {
+
+        } catch (e: CancellationException) {
             // 任务取消是正常的协程控制流程，不需要作为错误处理
             val executionTime = System.currentTimeMillis() - taskStartTime
             skippedCount.incrementAndGet()
             Log.record(TAG, "⏹️ 模块[${taskName}]第${round}轮被取消，耗时: ${executionTime}ms")
+            throw e
         } catch (e: Exception) {
             val executionTime = System.currentTimeMillis() - taskStartTime
             failureCount.incrementAndGet()
@@ -455,7 +490,7 @@ class CoroutineTaskRunner(allModels: List<Model>) {
             } catch (e: Exception) {
                 Log.record(TAG, "  - 任务状态: 获取失败(${e.message})")
             }
-            
+
         } catch (e: Exception) {
             Log.error(TAG, "记录任务状态信息失败: ${e.message}")
         }
@@ -469,7 +504,7 @@ class CoroutineTaskRunner(allModels: List<Model>) {
         failureCount.set(0)
         skippedCount.set(0)
         recoveryAttempts.clear()
-        
+
         // 重置性能监控指标
         taskExecutionTimes.clear()
         coroutineCreationCount.set(0)
@@ -496,26 +531,26 @@ class CoroutineTaskRunner(allModels: List<Model>) {
         Log.record(TAG, "❌ 失败任务: ${failureCount.get()}")
         Log.record(TAG, "⏭️ 跳过任务: ${skippedCount.get()}")
         Log.record(TAG, "🔄 恢复尝试: ${recoveryAttempts.size}")
-        
+
         if (recoveryAttempts.isNotEmpty()) {
             Log.record(TAG, "🔧 恢复详情:")
             recoveryAttempts.forEach { (taskId, attempts) ->
                 Log.record(TAG, "  - $taskId: $attempts 次尝试")
             }
         }
-        
+
         // 计算成功率
         val totalExecuted = successCount.get() + failureCount.get()
         if (totalExecuted > 0) {
             val successRate = (successCount.get() * 100.0) / totalExecuted
             Log.record(TAG, "📊 成功率: ${String.format("%.1f", successRate)}%")
         }
-        
+
         // 性能监控指标
         Log.record(TAG, "⚡ 性能指标:")
         Log.record(TAG, "  - 协程创建次数: ${coroutineCreationCount.get()}")
         Log.record(TAG, "  - 日志记录次数: ${logRecordCount.get()}")
-        
+
         // 任务执行时间分析
         if (taskExecutionTimes.isNotEmpty()) {
             val avgTime = taskExecutionTimes.values.average()
@@ -524,7 +559,7 @@ class CoroutineTaskRunner(allModels: List<Model>) {
             Log.record(TAG, "  - 任务平均耗时: ${String.format("%.1f", avgTime)}ms")
             Log.record(TAG, "  - 最长任务耗时: ${maxTime}ms")
             Log.record(TAG, "  - 最短任务耗时: ${minTime}ms")
-            
+
             // 找出最慢的3个任务
             val slowestTasks = taskExecutionTimes.entries
                 .sortedByDescending { it.value }
@@ -536,12 +571,12 @@ class CoroutineTaskRunner(allModels: List<Model>) {
                 }
             }
         }
-        
+
         // 性能分析
         if (totalTime > 60000) { // 超过1分钟
             Log.record(TAG, "⚠️ 执行时间较长，建议检查任务配置或网络状况")
         }
-        
+
         Log.record(TAG, "================================")
     }
 
