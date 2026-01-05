@@ -76,7 +76,7 @@ jobs:
         run: |
           # 获取原始APK路径
           original_apk="${{ steps.extract_apks.outputs.signed_arm64 }}"
-          original_filename=$(basename "$original_apk")
+    
           # 从 GitHub ref 中提取纯版本号
           if [ "${{ github.event_name }}" = "release" ]; then
             version="${{ github.event.release.tag_name }}"
@@ -86,36 +86,27 @@ jobs:
             # 移除可能的 'v' 前缀
             version="${version#v}"
           fi
-          echo "🏷️ 原始文件名: $original_filename"
-          echo "🏷️ 提取的版本号: $version"
-          # 检查文件名是否已经包含正确的版本号
-          if [[ "$original_filename" == *"-$version-signed.apk"* ]]; then
-            echo "✅ 文件名已包含正确的版本号 $version，无需重命名"
-            new_path="$original_apk"
-          else
-           # 从原始文件名中提取基础名称（移除旧版本号和-signed后缀）
-           base_name=$(echo "$original_filename" | sed -E 's/(-[0-9]+(\.[0-9]+)*)?-signed\.apk$//')
-           # 构建新文件名
-           new_name="${base_name}-${version}-signed.apk"
-           new_path="$(dirname "$original_apk")/$new_name"
-           # 确保新旧路径不同
-           if [ "$original_apk" = "$new_path" ]; then
-            echo "⚠️ 原始路径和新路径相同，使用备用命名方案"
-            new_name="Sesame-TK-arm64-v8a-${version}-signed.apk"
-            new_path="$(dirname "$original_apk")/$new_name"
-           fi
-           echo "🔄 将 $original_filename 重命名为 $new_name"
-           # 执行重命名
-           mv "$original_apk" "$new_path"
-           # 验证重命名是否成功
-           if [ ! -f "$new_path" ]; then
-             echo "❌ 重命名失败: $new_path 不存在"
-             ls -la "$(dirname "$original_apk")"
-             exit 1
-           fi
-           echo "✅ 重命名成功: $new_name"
+    
+          # 设置基础文件名
+          base_name="Sesame-TK-arm64-v8a"
+    
+          # 构建新文件名
+          new_name="${base_name}-${version}-signed.apk"
+          new_path="$(dirname "$original_apk")/$new_name"
+    
+          echo "🔄 重命名: $original_apk → $new_path"
+          mv "$original_apk" "$new_path"
+    
+          # 验证文件是否存在
+          if [ ! -f "$new_path" ]; then
+            echo "❌ 重命名失败: $new_path 不存在"
+            ls -la "$(dirname "$original_apk")"
+           exit 1
           fi
-          echo "renamed_apk=$new_path" >> $GITHUB_OUTPUT  
+    
+          echo "✅ 重命名成功: $new_name"
+          echo "renamed_apk=$new_path" >> $GITHUB_OUTPUT
+          echo "version=$version" >> $GITHUB_OUTPUT  # 直接在这里设置版本号
     
       - name: 🚀 Upload APK - arm64-v8a
         uses: actions/upload-artifact@v4
@@ -123,17 +114,9 @@ jobs:
           name: apk-arm64-v8a
           path: ${{ steps.rename_apk.outputs.renamed_apk }}
       
-      - name: 🛠️ Extract file names and version
-        id: extract_info
-        run: |
-          arm64_file=$(basename "${{ steps.extract_apks.outputs.signed_arm64 }}")
-          version="${{ github.ref_name }}"
-          echo "arm64_file=$arm64_file" >> $GITHUB_OUTPUT
-          echo "version=$version" >> $GITHUB_OUTPUT
-      
       - name: 🎨 Generate APKS Checksum
         run: |
-          sha256sum ${{ steps.rename_apk.outputs.renamed_apk }} > CHECKSUMS-Sesame-arm64-v8a-${{ steps.extract_info.outputs.version }}.apk.sha256
+          sha256sum "${{ steps.rename_apk.outputs.renamed_apk }}" > "CHECKSUMS-Sesame-arm64-v8a-${{ steps.rename_apk.outputs.version }}.apk.sha256"
       
       - name: 📝 Generate Dynamic Message
         id: commit_info
@@ -182,11 +165,11 @@ jobs:
         if: github.event_name == 'release' && github.event.action == 'published'
         uses: softprops/action-gh-release@v2
         with:
-          name: ${{ github.event.release.tag_name || steps.extract_info.outputs.version }}
-          files: |
-            ${{ steps.rename_apk.outputs.renamed_apk }}
-            CHECKSUMS-Sesame-arm64-v8a-${{ steps.extract_info.outputs.version }}.apk.sha256
-          tag_name: ${{ steps.extract_info.outputs.version }}
+          name: ${{ steps.rename_apk.outputs.version }}
+          文件: |
+           ${{ steps.rename_apk.outputs.renamed_apk }}
+           CHECKSUMS-Sesame-arm64-v8a-${{ steps.rename_apk.outputs.version }}.apk.sha256
+          tag_name: ${{ steps.rename_apk.outputs.version }}
           draft: false
           append_body: true
           make_latest: true
