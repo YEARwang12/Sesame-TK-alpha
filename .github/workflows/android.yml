@@ -74,39 +74,13 @@ jobs:
       - name: 🏷️ 重命名APK文件
         id: rename_apk
         run: |
-          # 获取原始APK路径
-          original_apk="${{ steps.extract_apks.outputs.signed_arm64 }}"
-    
-          # 从 GitHub ref 中提取纯版本号
-          if [ "${{ github.event_name }}" = "release" ]; then
-            version="${{ github.event.release.tag_name }}"
-          else
-            raw_ref="${{ github.ref }}"
-            version="${raw_ref##*/}" # 提取最后一个'/'之后的部分
-            # 移除可能的 'v' 前缀
-            version="${version#v}"
-          fi
-    
-          # 设置基础文件名
-          base_name="Sesame-TK-arm64-v8a"
-    
-          # 构建新文件名
-          new_name="${base_name}-${version}-signed.apk"
-          new_path="$(dirname "$original_apk")/$new_name"
-    
-          echo "🔄 重命名: $original_apk → $new_path"
-          mv "$original_apk" "$new_path"
-    
-          # 验证文件是否存在
-          if [ ! -f "$new_path" ]; then
-            echo "❌ 重命名失败: $new_path 不存在"
-            ls -la "$(dirname "$original_apk")"
-           exit 1
-          fi
-    
-          echo "✅ 重命名成功: $new_name"
-          echo "renamed_apk=$new_path" >> $GITHUB_OUTPUT
-          echo "version=$version" >> $GITHUB_OUTPUT  # 直接在这里设置版本号
+         original_apk="${{ steps.extract_apks.outputs.signed_arm64 }}"
+         version="${{ github.ref_name }}"
+         base_name=$(basename "$original_apk" | sed 's/-[0-9]*\.[0-9]*\.[0-9]*-signed\.apk//')
+         new_name="${base_name}-${version}-signed.apk"
+         new_path="$(dirname "$original_apk")/$new_name"
+         mv "$original_apk" "$new_path"
+         echo "renamed_apk=$new_path" >> $GITHUB_OUTPUT
     
       - name: 🚀 Upload APK - arm64-v8a
         uses: actions/upload-artifact@v4
@@ -114,9 +88,17 @@ jobs:
           name: apk-arm64-v8a
           path: ${{ steps.rename_apk.outputs.renamed_apk }}
       
+      - name: 🛠️ Extract file names and version
+        id: extract_info
+        run: |
+          arm64_file=$(basename "${{ steps.extract_apks.outputs.signed_arm64 }}")
+          version="${{ github.ref_name }}"
+          echo "arm64_file=$arm64_file" >> $GITHUB_OUTPUT
+          echo "version=$version" >> $GITHUB_OUTPUT
+      
       - name: 🎨 Generate APKS Checksum
         run: |
-          sha256sum "${{ steps.rename_apk.outputs.renamed_apk }}" > "CHECKSUMS-Sesame-arm64-v8a-${{ steps.rename_apk.outputs.version }}.apk.sha256"
+          sha256sum ${{ steps.rename_apk.outputs.renamed_apk }} > CHECKSUMS-Sesame-arm64-v8a-${{ steps.extract_info.outputs.version }}.apk.sha256
       
       - name: 📝 Generate Dynamic Message
         id: commit_info
@@ -165,11 +147,11 @@ jobs:
         if: github.event_name == 'release' && github.event.action == 'published'
         uses: softprops/action-gh-release@v2
         with:
-          name: ${{ steps.rename_apk.outputs.version }}
+          name: ${{ github.event.release.tag_name || steps.extract_info.outputs.version }}
           files: |
-           ${{ steps.rename_apk.outputs.renamed_apk }}
-           CHECKSUMS-Sesame-arm64-v8a-${{ steps.rename_apk.outputs.version }}.apk.sha256
-          tag_name: ${{ steps.rename_apk.outputs.version }}
+            ${{ steps.rename_apk.outputs.renamed_apk }}
+            CHECKSUMS-Sesame-arm64-v8a-${{ steps.extract_info.outputs.version }}.apk.sha256
+          tag_name: ${{ steps.extract_info.outputs.version }}
           draft: false
           append_body: true
           make_latest: true
