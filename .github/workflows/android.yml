@@ -48,24 +48,12 @@ jobs:
         run: |
           release_dir="app/build/outputs/apk/release"
           arm64_apk=$(find "$release_dir" -name "*-arm64-v8a-*.apk" | head -n 1)
-          armv7_apk=$(find "$release_dir" -name "*-armeabi-v7a-*.apk" | head -n 1)
-          x86_apk=$(find "$release_dir" -name "*-x86-*.apk" | head -n 1)
-          x86_64_apk=$(find "$release_dir" -name "*-x86_64-*.apk" | head -n 1)
-          universal_apk=$(find "$release_dir" -name "*-universal-*.apk" | head -n 1)
           echo "arm64_apk=$arm64_apk" >> $GITHUB_OUTPUT
-          echo "armv7_apk=$armv7_apk" >> $GITHUB_OUTPUT
-          echo "x86_apk=$x86_apk" >> $GITHUB_OUTPUT
-          echo "x86_64_apk=$x86_64_apk" >> $GITHUB_OUTPUT
-          echo "universal_apk=$universal_apk" >> $GITHUB_OUTPUT
 
       - name: ⏳ Copy APKs to staging for signing
         run: |
           mkdir -p app/build/outputs/apk/all
           cp "${{ steps.locate_apks.outputs.arm64_apk }}" app/build/outputs/apk/all/
-          cp "${{ steps.locate_apks.outputs.armv7_apk }}" app/build/outputs/apk/all/
-          cp "${{ steps.locate_apks.outputs.x86_apk }}" app/build/outputs/apk/all/
-          cp "${{ steps.locate_apks.outputs.x86_64_apk }}" app/build/outputs/apk/all/
-          cp "${{ steps.locate_apks.outputs.universal_apk }}" app/build/outputs/apk/all/
 
       - name: 🔐 Sign APKs
         id: sign_apks
@@ -85,14 +73,6 @@ jobs:
           for file in "${files[@]}"; do
             if [[ "$file" == *arm64-v8a* ]]; then
               echo "signed_arm64=$file" >> $GITHUB_OUTPUT
-            elif [[ "$file" == *armeabi-v7a* ]]; then
-              echo "signed_armv7=$file" >> $GITHUB_OUTPUT
-            elif [[ "$file" == *x86_64* ]]; then
-              echo "signed_x86_64=$file" >> $GITHUB_OUTPUT
-            elif [[ "$file" == *x86* ]]; then
-              echo "signed_x86=$file" >> $GITHUB_OUTPUT
-            elif [[ "$file" == *universal* ]]; then
-              echo "signed_universal=$file" >> $GITHUB_OUTPUT
             fi
           done
 
@@ -102,54 +82,18 @@ jobs:
           name: apk-arm64-v8a
           path: ${{ steps.extract_apks.outputs.signed_arm64 }}
 
-      - name: 🚀 Upload APK - armeabi-v7a
-        uses: actions/upload-artifact@v4
-        with:
-          name: apk-armeabi-v7a
-          path: ${{ steps.extract_apks.outputs.signed_armv7 }}
-
-      - name: 🚀 Upload APK - x86
-        uses: actions/upload-artifact@v4
-        with:
-          name: apk-x86
-          path: ${{ steps.extract_apks.outputs.signed_x86 }}
-
-      - name: 🚀 Upload APK - x86_64
-        uses: actions/upload-artifact@v4
-        with:
-          name: apk-x86_64
-          path: ${{ steps.extract_apks.outputs.signed_x86_64 }}
-
-      - name: 🚀 Upload APK - universal
-        uses: actions/upload-artifact@v4
-        with:
-          name: apk-universal
-          path: ${{ steps.extract_apks.outputs.signed_universal }}
-
       - name: 🛠️ Extract file names and version
         id: extract_info
         run: |
           arm64_file=$(basename "${{ steps.extract_apks.outputs.signed_arm64 }}")
-          armv7_file=$(basename "${{ steps.extract_apks.outputs.signed_armv7 }}")
-          x86_file=$(basename "${{ steps.extract_apks.outputs.signed_x86 }}")
-          x86_64_file=$(basename "${{ steps.extract_apks.outputs.signed_x86_64 }}")
-          universal_file=$(basename "${{ steps.extract_apks.outputs.signed_universal }}")
           version="${{ github.ref_name }}"
           echo "arm64_file=$arm64_file" >> $GITHUB_OUTPUT
-          echo "armv7_file=$armv7_file" >> $GITHUB_OUTPUT
-          echo "x86_file=$x86_file" >> $GITHUB_OUTPUT
-          echo "x86_64_file=$x86_64_file" >> $GITHUB_OUTPUT
-          echo "universal_file=$universal_file" >> $GITHUB_OUTPUT
           echo "version=$version" >> $GITHUB_OUTPUT
 
       - name: 🎨 Generate APKS Checksum
         run: |
           sha256sum ${{ steps.extract_apks.outputs.signed_arm64 }} > CHECKSUMS-Sesame-arm64-v8a-${{ steps.extract_info.outputs.version }}.apk.sha256
-          sha256sum ${{ steps.extract_apks.outputs.signed_armv7 }} > CHECKSUMS-Sesame-armeabi-v7a-${{ steps.extract_info.outputs.version }}.apk.sha256
-          sha256sum ${{ steps.extract_apks.outputs.signed_x86 }} > CHECKSUMS-Sesame-x86-${{ steps.extract_info.outputs.version }}.apk.sha256
-          sha256sum ${{ steps.extract_apks.outputs.signed_x86_64 }} > CHECKSUMS-Sesame-x86_64-${{ steps.extract_info.outputs.version }}.apk.sha256
-          sha256sum ${{ steps.extract_apks.outputs.signed_universal }} > CHECKSUMS-Sesame-universal-${{ steps.extract_info.outputs.version }}.apk.sha256
-
+  
       - name: 📝 Generate Dynamic Message
         id: commit_info
         shell: bash
@@ -200,15 +144,7 @@ jobs:
           name: ${{ github.event.release.tag_name || steps.extract_info.outputs.version }}
           files: |
             ${{ steps.extract_apks.outputs.signed_arm64 }}
-            ${{ steps.extract_apks.outputs.signed_armv7 }}
-            ${{ steps.extract_apks.outputs.signed_x86 }}
-            ${{ steps.extract_apks.outputs.signed_x86_64 }}
-            ${{ steps.extract_apks.outputs.signed_universal }}
             CHECKSUMS-Sesame-arm64-v8a-${{ steps.extract_info.outputs.version }}.apk.sha256
-            CHECKSUMS-Sesame-armeabi-v7a-${{ steps.extract_info.outputs.version }}.apk.sha256
-            CHECKSUMS-Sesame-x86-${{ steps.extract_info.outputs.version }}.apk.sha256
-            CHECKSUMS-Sesame-x86_64-${{ steps.extract_info.outputs.version }}.apk.sha256
-            CHECKSUMS-Sesame-universal-${{ steps.extract_info.outputs.version }}.apk.sha256
           tag_name: ${{ steps.extract_info.outputs.version}}
           draft: false
           append_body: true
@@ -219,41 +155,5 @@ jobs:
 
             > ## 下载说明
             <b>- arm64-v8a:</b> 适用于64位ARM设备 (主流新手机)
-            <b>- armeabi-v7a:</b> 适用于32位ARM设备 (旧款手机)
-            <b>- x86 / x86_64:</b> 主要用于PC上的安卓模拟器
-            <b>- universal:</b> 通用版 (不确定时使用，体积较大)
-            >
-            > **如果不确定，请下载 `universal` 版本。**
-
-      - name: 🔁 Sync Release to Target Repository
-        uses: softprops/action-gh-release@v2
-        with:
-          repository: Xposed-Modules-Repo/fansirsqi.xposed.sesame # 目标仓库的拥有者和仓库名称
-          name: ${{ github.event.release.tag_name || steps.extract_info.outputs.version }} # 发布的名称。默认为标签名称
-          files: |
-            ${{ steps.extract_apks.outputs.signed_arm64 }}
-            ${{ steps.extract_apks.outputs.signed_armv7 }}
-            ${{ steps.extract_apks.outputs.signed_x86 }}
-            ${{ steps.extract_apks.outputs.signed_x86_64 }}
-            ${{ steps.extract_apks.outputs.signed_universal }}
-            CHECKSUMS-Sesame-arm64-v8a-${{ steps.extract_info.outputs.version }}.apk.sha256
-            CHECKSUMS-Sesame-armeabi-v7a-${{ steps.extract_info.outputs.version }}.apk.sha256
-            CHECKSUMS-Sesame-x86-${{ steps.extract_info.outputs.version }}.apk.sha256
-            CHECKSUMS-Sesame-x86_64-${{ steps.extract_info.outputs.version }}.apk.sha256
-            CHECKSUMS-Sesame-universal-${{ steps.extract_info.outputs.version }}.apk.sha256
-          token: ${{ secrets.TARGET_REPO_PAT }}
-          tag_name: ${{ steps.extract_info.outputs.version}}
-          draft: false
-          append_body: true
-          make_latest: true
-          body: |
-            📦 内容同步自源仓库 [Sesame-TK](https://github.com/${{ github.repository }})     
-            ## ✨What's Changed
-            
-            > ## 下载说明
-            <b>- arm64-v8a:</b> 适用于64位ARM设备 (主流新手机)
-            <b>- armeabi-v7a:</b> 适用于32位ARM设备 (旧款手机)
-            <b>- x86 / x86_64:</b> 主要用于PC上的安卓模拟器
-            <b>- universal:</b> 通用版 (不确定时使用，体积较大)
             >
             > **如果不确定，请下载 `universal` 版本。**
