@@ -9,7 +9,7 @@ import fansirsqi.xposed.sesame.data.Status.Companion.memberSignInToday
 import fansirsqi.xposed.sesame.data.Status.Companion.setFlagToday
 import fansirsqi.xposed.sesame.data.StatusFlags
 import fansirsqi.xposed.sesame.entity.MemberBenefit.Companion.getList
-import fansirsqi.xposed.sesame.hook.internal.LocationHelper.requestLocation
+import fansirsqi.xposed.sesame.hook.internal.LocationHelper.requestLocationSuspend
 import fansirsqi.xposed.sesame.hook.internal.SecurityBodyHelper.getSecurityBodyData
 import fansirsqi.xposed.sesame.model.BaseModel.Companion.energyTime
 import fansirsqi.xposed.sesame.model.BaseModel.Companion.modelSleepTime
@@ -181,10 +181,8 @@ class AntMember : ModelTask() {
         runBlocking {
             try {
                 record(TAG, "执行开始-$name")
-                // 异步获取位置信息
-                requestLocation { locationJson: JSONObject? ->
-                    Log.other(TAG, "📍 获取到位置信息: $locationJson")
-                }
+                // 异步获取位置信息-for 2101
+                requestLocationSuspend()
 
                 // 并行执行独立任务
                 val deferredTasks = mutableListOf<Deferred<Unit>>()

@@ -122,6 +122,9 @@ class AntFarm : ModelTask() {
      */
     private var sleepTime: StringModelField? = null
 
+    // 起床时间
+    private var wakeUpTime: StringModelField? = null
+
     /**
      * 小鸡睡觉时长
      */
@@ -251,13 +254,11 @@ class AntFarm : ModelTask() {
                 "2330"
             ).also { sleepTime = it })
         modelFields.addField(
-            IntegerModelField(
-                "sleepMinutes",
-                "小鸡睡觉时长(分钟)",
-                10 * 36,
-                1,
-                10 * 60
-            ).also { sleepMinutes = it })
+            StringModelField(
+                "wakeupTime",
+                "小鸡起床时间(关闭:-1)",
+                "0530"
+            ).also { wakeUpTime = it })
         modelFields.addField(
             ChoiceModelField(
                 "recallAnimalType",
@@ -975,17 +976,28 @@ class AntFarm : ModelTask() {
                 Log.record(TAG, "小鸡睡觉时间格式错误，请重新设置")
                 return
             }
-            val sleepMinutesInt = sleepMinutes!!.value
-            val animalWakeUpTimeCalendar = animalSleepTimeCalendar.clone() as Calendar
-            animalWakeUpTimeCalendar.add(Calendar.MINUTE, sleepMinutesInt)
-            val animalSleepTime = animalSleepTimeCalendar.getTimeInMillis()
-            val animalWakeUpTime = animalWakeUpTimeCalendar.getTimeInMillis()
-            if (animalSleepTime > animalWakeUpTime) {
-                Log.record(TAG, "小鸡睡觉设置有误，请重新设置")
-                return
+
+            val wakeUpTimeStr = wakeUpTime!!.value
+            if ("-1" == wakeUpTimeStr) {
+                Log.record(TAG, "当前已关闭小鸡起床")
             }
+
+            var animalWakeUpTimeCalendar = TimeUtil.getTodayCalendarByTimeStr(wakeUpTimeStr)
+            if(animalWakeUpTimeCalendar == null) {
+                Log.record(TAG, "小鸡起床时间格式错误，请重新设置，否则默认关闭")
+                animalWakeUpTimeCalendar = TimeUtil.getTodayCalendarByTimeStr("0600")
+            }
+            val sixAmToday = TimeUtil.getTodayCalendarByTimeStr("0600")
+            if (now.after(sixAmToday)) {
+                animalWakeUpTimeCalendar.add(Calendar.DAY_OF_MONTH, 1)
+            }
+
+            val animalWakeUpTime = animalWakeUpTimeCalendar.timeInMillis
+            val animalSleepTime = animalSleepTimeCalendar.timeInMillis
             val afterSleepTime = now > animalSleepTimeCalendar
             val afterWakeUpTime = now > animalWakeUpTimeCalendar
+            val afterSixAm = now >= sixAmToday
+
             if (afterSleepTime && afterWakeUpTime) {
                 if (!Status.canAnimalSleep()) {
                     return
@@ -1030,6 +1042,11 @@ class AntFarm : ModelTask() {
             if (afterSleepTime) {
                 if (Status.canAnimalSleep()) {
                     animalSleepNow()
+                }
+            }
+            if (afterWakeUpTime && !afterSixAm) {
+                if (Status.canAnimalSleep()) {
+                    animalWakeUpNow()
                 }
             }
         } catch (e: Exception) {
@@ -1476,17 +1493,7 @@ class AntFarm : ModelTask() {
                     val jo = JSONObject(s)
                     val memo = jo.getString("memo")
                     if (ResChecker.checkRes(TAG, jo)) {
-                        if (sendTypeInt == SendBackAnimalWay.HIT) {
-                            if (jo.has("hitLossFood")) {
-                                s =
-                                    "胖揍小鸡🤺[" + user + "]，掉落[" + jo.getInt("hitLossFood") + "g]"
-                                if (jo.has("finalFoodStorage")) foodStock =
-                                    jo.getInt("finalFoodStorage")
-                            } else s = "[$user]的小鸡躲开了攻击"
-                        } else {
-                            s = "驱赶小鸡🧶[$user]"
-                        }
-                        Log.farm(s)
+                        Log.farm("${UserMap.getCurrentMaskName()} 驱赶小鸡🧶[$user]")
                     } else {
                         Log.record(memo)
                         Log.record(s)

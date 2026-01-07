@@ -101,6 +101,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import fansirsqi.xposed.sesame.ui.compose.CommonAlertDialog
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
@@ -127,6 +128,7 @@ fun LogViewerScreen(
     var isSearchActive by remember { mutableStateOf(false) }
 
     val focusRequester = remember { FocusRequester() }
+    var showClearDialog by remember { mutableStateOf(false) }
 
     // 拦截返回键
     BackHandler(enabled = isSearchActive) {
@@ -172,10 +174,10 @@ fun LogViewerScreen(
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
                     // ✅ 统一使用 Surface (背景) 和 OnSurface (前景)
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
-                    actionIconContentColor = MaterialTheme.colorScheme.onSurface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface
+                    containerColor = MaterialTheme.colorScheme.background,
+//                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+//                    actionIconContentColor = MaterialTheme.colorScheme.onSurface,
+//                    titleContentColor = MaterialTheme.colorScheme.onSurface
                 ),
                 navigationIcon = {
                     TooltipBox(
@@ -369,7 +371,10 @@ fun LogViewerScreen(
                                         )
                                         DropdownMenuItem(
                                             text = { Text("清空日志", color = MaterialTheme.colorScheme.error) },
-                                            onClick = { showMenu = false; viewModel.clearLogFile(context) },
+                                            onClick = {
+                                                showMenu = false
+                                                showClearDialog= true
+                                            },
                                             leadingIcon = { Icon(Icons.Default.CleaningServices, null, tint = MaterialTheme.colorScheme.error) }
                                         )
                                     }
@@ -380,7 +385,8 @@ fun LogViewerScreen(
                 }
             )
         }
-    ) { padding ->
+    )
+    { padding ->
         // Body 内容
         Box(
             modifier = Modifier
@@ -481,7 +487,24 @@ fun LogViewerScreen(
                 }
             }
         }
+
+
     }
+    // ✨ 挂载通用确认弹窗
+    CommonAlertDialog(
+        showDialog = showClearDialog,
+        onDismissRequest = { showClearDialog = false },
+        onConfirm = {
+            // 🔥 确认后，执行清空逻辑
+            viewModel.clearLogFile(context)
+        },
+        title = "⚠️ 警告",
+        text = "🤔 确认清空当前日志文件？此操作无法撤销。",
+        icon = Icons.Default.CleaningServices,
+        iconTint = MaterialTheme.colorScheme.error,
+        confirmText = "确认清空",
+        confirmButtonColor = MaterialTheme.colorScheme.error
+    )
 }
 
 
@@ -538,6 +561,7 @@ fun LogLineItem(line: String, searchQuery: String, fontSize: TextUnit, textColor
             .padding(vertical = 0.dp) // 减少不必要的 padding
     )
 }
+
 // DraggableScrollbar 保持不变
 @Composable
 fun DraggableScrollbar(listState: LazyListState, totalItems: Int, modifier: Modifier = Modifier) {

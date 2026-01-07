@@ -6,16 +6,21 @@ import fansirsqi.xposed.sesame.R
 import fansirsqi.xposed.sesame.data.Status
 import fansirsqi.xposed.sesame.entity.MapperEntity
 import fansirsqi.xposed.sesame.model.modelFieldExt.BooleanModelField
+import fansirsqi.xposed.sesame.model.modelFieldExt.ListModelField.ListJoinCommaToStringModelField
 import fansirsqi.xposed.sesame.model.modelFieldExt.SelectModelField
 import fansirsqi.xposed.sesame.ui.widget.ListDialog
 import fansirsqi.xposed.sesame.util.FansirsqiUtil
 import fansirsqi.xposed.sesame.util.Files
 import fansirsqi.xposed.sesame.util.JsonUtil
+import fansirsqi.xposed.sesame.util.ListUtil
 import fansirsqi.xposed.sesame.util.Log
 import fansirsqi.xposed.sesame.util.TimeUtil
 import fansirsqi.xposed.sesame.util.ToastUtil
 import fansirsqi.xposed.sesame.util.maps.UserMap
 import java.lang.reflect.Field
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * 自定义设置管理类
@@ -25,7 +30,13 @@ object CustomSettings {
     private const val TAG = "CustomSettings"
 
     val onlyOnceDaily = BooleanModelField("onlyOnceDaily", "选中每日只运行一次的模块", false)
-    val autoHandleOnceDaily = BooleanModelField("autoHandleOnceDaily", "每日6-7,20-21点自动关闭单次运行", false)
+    val autoHandleOnceDaily = BooleanModelField("autoHandleOnceDaily", "定时自动关闭单次运行", false)
+
+    val autoHandleOnceDailyTimes = ListJoinCommaToStringModelField(
+        "autoHandleOnceDailyTimes",
+        "自动全量时间点",
+        ListUtil.newArrayList("0600", "2000")
+    )
 
     val onlyOnceDailyList = SelectModelField(
         "onlyOnceDailyList",
@@ -55,7 +66,8 @@ object CustomSettings {
             SimpleEntity("antMember", "会员"),
             SimpleEntity("EcoProtection", "生态保护"),
             SimpleEntity("greenFinance", "绿色经营"),
-            SimpleEntity("reserve", "保护地")
+            SimpleEntity("reserve", "保护地"),
+            SimpleEntity("other", "其他任务")
         )
     }
 
@@ -85,6 +97,7 @@ object CustomSettings {
     private fun resetToDefault() {
         onlyOnceDaily.setObjectValue(false)
         autoHandleOnceDaily.setObjectValue(false)
+        autoHandleOnceDailyTimes.setObjectValue(ListUtil.newArrayList("0600", "2000"))
         val defaultSet = LinkedHashSet<String>().apply {
             add("antOrchard")
             add("antCooperate")
@@ -106,6 +119,7 @@ object CustomSettings {
             data[onlyOnceDaily.code] = onlyOnceDaily.value
             data[onlyOnceDailyList.code] = onlyOnceDailyList.value
             data[autoHandleOnceDaily.code] = autoHandleOnceDaily.value
+            data[autoHandleOnceDailyTimes.code] = autoHandleOnceDailyTimes.value
             val json = JsonUtil.formatJson(data)
             if (json != null) Files.write2File(json, file!!)
         } catch (e: Throwable) {
@@ -131,6 +145,7 @@ object CustomSettings {
             if (data.containsKey(onlyOnceDaily.code)) onlyOnceDaily.setObjectValue(data[onlyOnceDaily.code])
             if (data.containsKey(onlyOnceDailyList.code)) onlyOnceDailyList.setObjectValue(data[onlyOnceDailyList.code])
             if (data.containsKey(autoHandleOnceDaily.code)) autoHandleOnceDaily.setObjectValue(data[autoHandleOnceDaily.code])
+            if (data.containsKey(autoHandleOnceDailyTimes.code)) autoHandleOnceDailyTimes.setObjectValue(data[autoHandleOnceDailyTimes.code])
         } catch (e: Throwable) {
             Log.printStackTrace(TAG, "Failed to load custom settings", e)
         }
@@ -156,7 +171,7 @@ object CustomSettings {
             taskInfo.contains("生态保护") || taskInfo.contains("EcoProtection") -> "EcoProtection"
             taskInfo.contains("绿色经营") || taskInfo.contains("greenFinance") -> "greenFinance"
             taskInfo.contains("保护地") || taskInfo.contains("reserve") -> "reserve"
-            taskInfo.contains("其他") || taskInfo.contains("other") -> "other"
+            taskInfo.contains("其他任务") || taskInfo.contains("other") -> "other"
             else -> null
         }
     }
@@ -187,14 +202,33 @@ object CustomSettings {
             false
         }
 
-        val isSpecialTime = TimeUtil.checkNowInTimeRange("0600-0710") ||
-                TimeUtil.checkNowInTimeRange("2000-2100")
+        val now = System.currentTimeMillis()
+        val interval = BaseModel.checkInterval.value.toLong()
+        val isSpecialTime = autoHandleOnceDailyTimes.value.any { timeStr ->
+            val startCal = TimeUtil.getTodayCalendarByTimeStr(timeStr)
+            if (startCal != null) {
+                val startTime = startCal.timeInMillis
+                val endTime = startTime + interval
+                now in startTime..endTime
+            } else {
+                false
+            }
+        }
 
         var isEnabled = configEnabled
 
         if (isSpecialTime && autoHandleOnceDaily.value) {
             isEnabled = false
-            if (enableLog) Log.record("自动单次运行触发: 0600-0700和2000-2100之间的任务会自动使用全量模式")
+            if (enableLog) Log.record("自动单次运行触发: 现在处于自动全量运行时段，本次将运行所有已开启的任务")
+        } else if (enableLog && autoHandleOnceDaily.value) {
+            val sdf = SimpleDateFormat("HHmm", Locale.getDefault())
+            val ranges = autoHandleOnceDailyTimes.value.mapNotNull { timeStr ->
+                TimeUtil.getTodayCalendarByTimeStr(timeStr)?.let {
+                    val endTime = it.timeInMillis + interval
+                    "$timeStr-${sdf.format(Date(endTime))}"
+                }
+            }.joinToString(", ")
+            Log.record("已设置自动全量运行，时段为：$ranges")
         }
 
         // 如果今日尚未完成首次全量运行，则不启用“跳过”拦截逻辑
@@ -240,7 +274,7 @@ object CustomSettings {
             isFinished -> "单次运行：今日已完成"
             else -> "单次运行：已开启"
         }
-        val ops = arrayOf(statusText, "设置黑名单模块")
+        val ops = arrayOf(statusText, "设置黑名单模块", "设置非单次运行的时段")
         AlertDialog.Builder(context)
             .setTitle("账号：$showName")
             .setItems(ops) { _, which ->
@@ -259,7 +293,7 @@ object CustomSettings {
                     save(uid)
                     onRefresh()
                     showAccountOps(context, uid, showName, onRefresh)
-                } else {
+                } else if (which == 1) {
                     ListDialog.show(context, "黑名单 | $showName", onlyOnceDailyList)
                     try {
                         val dialogField: Field = ListDialog::class.java.getDeclaredField("listDialog")
@@ -268,6 +302,20 @@ object CustomSettings {
                         dialog?.setOnDismissListener { save(uid) }
                     } catch (e: Exception) {
                     }
+                } else if (which == 2) {
+                    val edt = android.widget.EditText(context)
+                    edt.setText(autoHandleOnceDailyTimes.configValue)
+                    AlertDialog.Builder(context)
+                        .setTitle("设置 ${showName} 非单次运行时段")
+                        .setMessage("输入开始时间点(如0600)，多个用逗号隔开。时段为该时间点加\"设置\"中的执行间隔时间")
+                        .setView(edt)
+                        .setPositiveButton(R.string.ok) { _, _ ->
+                            autoHandleOnceDailyTimes.setConfigValue(edt.text.toString())
+                            save(uid)
+                            showAccountOps(context, uid, showName, onRefresh)
+                        }
+                        .setNegativeButton(R.string.cancel, null)
+                        .show()
                 }
             }
             .setNegativeButton("返回", null)

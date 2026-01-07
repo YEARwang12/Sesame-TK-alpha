@@ -412,18 +412,7 @@ public class ApplicationHook {
                         }
                     }
 
-                    if (BuildConfig.DEBUG) {
-                        try {
-                            ModuleHttpServerManager.INSTANCE.startIfNeeded(
-                                    8080,
-                                    "ET3vB^#td87sQqKaY*eMUJXP",
-                                    XposedEnv.processName,
-                                    General.PACKAGE_NAME
-                            );
-                        } catch (Throwable e) {
-                            // ignore
-                        }
-                    }
+
                     super.afterHookedMethod(param);
                 }
             });
@@ -544,10 +533,6 @@ public class ApplicationHook {
                                 return;
                             Notify.updateStatusText("支付宝前台服务被销毁");
                             destroyHandler();
-                            try {
-                                ModuleHttpServerManager.INSTANCE.stopIfRunning();
-                            } catch (Throwable ignore) {
-                            }
                             restartByBroadcast();
                         }
                     });
@@ -614,7 +599,18 @@ public class ApplicationHook {
     private static synchronized Boolean initHandler() {
         try {
             if (init) destroyHandler();
-
+            if (BuildConfig.DEBUG) {
+                try {
+                    ModuleHttpServerManager.INSTANCE.startIfNeeded(
+                            8080,
+                            "ET3vB^#td87sQqKaY*eMUJXP",
+                            XposedEnv.processName,
+                            General.PACKAGE_NAME
+                    );
+                } catch (Throwable e) {
+                    // ignore
+                }
+            }
             ensureScheduler();
             Model.initAllModel();
             if (service == null) return false;
@@ -808,12 +804,13 @@ public class ApplicationHook {
         @Override
         public void onReceive(Context context, Intent intent) {
             try {
+                String action = intent.getAction();
                 // 优化建议：显式过滤
                 if (finalProcessName != null && finalProcessName.endsWith(":widgetProvider")) {
-                    Log.record(TAG, "小组件进程收到广播，保持活跃");
+                    Log.record(TAG, "小组件进程收到广播[" + action + "]保持活跃");
                     return;
                 }
-                String action = intent.getAction();
+
                 if (action != null) {
                     switch (action) {
                         case BroadcastActions.RESTART:

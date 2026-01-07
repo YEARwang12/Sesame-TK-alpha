@@ -81,7 +81,13 @@ object DeviceInfoUtil {
 
 
     private suspend fun getDeviceName(context: Context): String {
-        val candidates = listOf("ro.product.marketname", "ro.product.model")
+        val candidates = listOf(
+            "ro.product.marketname",//miui
+            "ro.vendor.oplus.market.enname",//oplus
+            "ro.vendor.oplus.market.name",//realme
+            "ro.vivo.market.name",//vivo
+            "ro.product.model",//兜底
+        )
         for (prop in candidates) {
             val value = getProp(context, prop)
             if (value.isNotBlank()) return value
@@ -90,17 +96,21 @@ object DeviceInfoUtil {
     }
 
     private suspend fun getSn(context: Context): String {
-        return getProp(context, "ro.serialno")
+        val sn = getProp(context, "ro.serialno")
+        if (sn.isNotBlank()) {
+            return sn
+        }
+        return "请使用Shizuku授权模块⚠️"
     }
 
     suspend fun showInfo(context: Context): Map<String, String> = withContext(Dispatchers.IO) {
         val currentShellType = CommandUtil.getShellType(context)
 
         val permissionStatus = when (currentShellType) {
-            "RootShell" -> "Root ✓"
-            "ShizukuShell" -> "Shizuku (Shell) ✓"
-            "UserShell" -> "普通用户权限(正常使用) ✓"
-            null, "no_executor" -> "未授权滑块服务 ❌"
+            "RootShell" -> "Root ✔"
+            "ShizukuShell" -> "Shizuku ✔"
+            "UserShell" -> "User ✔"
+            "no_executor" -> "未授权滑块服务 ❌"
             else -> "未知 ❌"
         }
 
