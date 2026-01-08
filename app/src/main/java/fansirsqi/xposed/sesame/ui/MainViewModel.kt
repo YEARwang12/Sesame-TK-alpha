@@ -1,7 +1,6 @@
 package fansirsqi.xposed.sesame.ui
 
 import android.app.Application
-import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import fansirsqi.xposed.sesame.data.ConnectionState
@@ -10,15 +9,20 @@ import fansirsqi.xposed.sesame.entity.UserEntity
 import fansirsqi.xposed.sesame.newutil.DataStore
 import fansirsqi.xposed.sesame.newutil.IconManager
 import fansirsqi.xposed.sesame.util.AssetUtil
+import fansirsqi.xposed.sesame.util.DirectoryWatcher.observeDirectoryChanges
 import fansirsqi.xposed.sesame.util.FansirsqiUtil
 import fansirsqi.xposed.sesame.util.FansirsqiUtil.getFolderList
 import fansirsqi.xposed.sesame.util.Files
+import fansirsqi.xposed.sesame.util.Log
 import fansirsqi.xposed.sesame.util.maps.UserMap
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -82,6 +86,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // 🔥 2. 使用成员变量注册
             LsposedServiceManager.addConnectionListener(serviceListener)
 
+            startConfigDirectoryObserver()
+
+        }
+    }
+
+    @OptIn(FlowPreview::class)
+    private fun startConfigDirectoryObserver() {
+        viewModelScope.launch(Dispatchers.IO) {
+            // 监听 CONFIG_DIR (存放 userId 文件夹的目录)
+            observeDirectoryChanges(Files.CONFIG_DIR)
+                .debounce(100) // 🔥 防抖：500ms 内的多次变动只触发一次刷新
+                .collectLatest {
+                    Log.d(TAG, "Config directory changed, reloading users...")
+                    reloadUserConfigs()
+                }
         }
     }
 
@@ -123,8 +142,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
 
-
-
     /**
      * 获取一言
      */
@@ -158,36 +175,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun reloadUserConfigs() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                // 1. 加载全局 UI 配置
                 try {
                     fansirsqi.xposed.sesame.data.UIConfig.load()
                 } catch (e: Exception) {
                     Log.e(TAG, "UIConfig load failed", e)
                 }
-
-                // 2. 获取配置文件夹列表
-                val configFiles = verifuids
+                // 🔥 关键修正：直接从文件系统获取最新的文件夹列表
+                val latestUserIds = getFolderList(Files.CONFIG_DIR.absolutePath)
+                if (latestUserIds.isEmpty()) {
+                    Log.e(TAG, "未找到任何配置文件")
+                }
                 val newList = mutableListOf<UserEntity>()
-
-                for (userId in configFiles) {
+                for (userId in latestUserIds) {
                     // 加载该用户的配置到内存 Map
                     UserMap.loadSelf(userId)
-
                     // 尝试从 Map 获取实体
                     val mapEntity = UserMap.get(userId)
                     if (mapEntity != null) {
                         newList.add(mapEntity)
                     }
-//                    else {
-//                        // 关键修正：如果配置文件损坏或不存在，手动创建一个包含 userId 的实体
-//                        // 这样 UI 列表依然能显示出这个文件夹，允许用户点击进入设置
-//                        val fallbackEntity = UserEntity().apply {
-//                            this.userId = userId
-//                            this.showName = userId // 只有 ID，没有昵称
-//                            this.account = "配置未读取"
-//                        }
-//                        newList.add(fallbackEntity)
-//                    }
                 }
                 // 更新状态流
                 _userList.value = newList
@@ -244,12 +250,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
 
-
     companion object {
         const val TAG = "MainViewModel"
         val verifuids: List<String> = getFolderList(Files.CONFIG_DIR.absolutePath)
-        var verifyId: String = "待施工🚧..."
-
-
     }
 }

@@ -64,6 +64,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -138,16 +139,25 @@ class MainActivity : ComponentActivity() {
             // 收集 ViewModel 状态
             val oneWord by viewModel.oneWord.collectAsStateWithLifecycle()
             val activeUser by viewModel.activeUser.collectAsStateWithLifecycle()
-            val userList by viewModel.userList.collectAsStateWithLifecycle()
+
             val moduleStatus by viewModel.moduleStatus.collectAsStateWithLifecycle()
+
+            //  获取实时的 UserEntity 列表
+            val userList by viewModel.userList.collectAsStateWithLifecycle()
+            // 使用 derivedStateOf 优化性能，只在 userList 变化时重新映射
+            val uidList by remember {
+                derivedStateOf { userList.map { it.userId } }
+            }
 
 
             // AppTheme 会处理状态栏颜色
             AppTheme {
-                WatermarkLayer {
+                WatermarkLayer(
+                    uidList = uidList
+                ) {
                     MainScreen(
                         oneWord = oneWord,
-                        activeUserName = activeUser?.showName ?: "未载入^o^ 重启支付宝看看👀",
+                        activeUserName = activeUser?.showName ?: "未载入",
                         moduleStatus = moduleStatus,
                         viewModel = viewModel,
                         userList = userList, // 传入列表
@@ -381,8 +391,9 @@ fun MainScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = "当前载入: $activeUserName",
+                        text = activeUserName,
                         style = MaterialTheme.typography.bodyLarge,
+                        fontSize = 28.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 },

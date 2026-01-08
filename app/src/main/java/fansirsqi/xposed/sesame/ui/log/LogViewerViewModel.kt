@@ -25,7 +25,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.io.IOException
 import java.io.RandomAccessFile
 import java.nio.charset.StandardCharsets
 import java.util.ArrayDeque
@@ -148,7 +147,6 @@ class LogViewerViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    @Throws(IOException::class)
     private fun countLines(raf: RandomAccessFile): Long {
         val originalPos = raf.filePointer
         raf.seek(0)
@@ -232,9 +230,7 @@ class LogViewerViewModel(application: Application) : AndroidViewModel(applicatio
     private fun startFileObserver(path: String) {
         val file = File(path)
         val parentPath = file.parent ?: return
-
         fileObserver?.stopWatching()
-
         val eventMask = FileObserver.MODIFY or FileObserver.CREATE
         val observerFile = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) file else File(parentPath)
         val onFileEvent: (String?) -> Unit = { p ->
@@ -243,7 +239,6 @@ class LogViewerViewModel(application: Application) : AndroidViewModel(applicatio
                 viewModelScope.launch { handleFileUpdate() }
             }
         }
-
         fileObserver = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             object : FileObserver(observerFile, eventMask) {
                 override fun onEvent(event: Int, p: String?) { onFileEvent(p) }

@@ -3,6 +3,7 @@ package fansirsqi.xposed.sesame.hook.internal
 import de.robv.android.xposed.XposedHelpers
 import fansirsqi.xposed.sesame.newutil.DataStore
 import fansirsqi.xposed.sesame.util.Log
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -72,6 +73,7 @@ object LocationHelper {
      * 兼容旧版：回调风格 (内部使用协程)
      * 供 Java 代码或尚未迁移的 Kotlin 代码使用
      */
+    @OptIn(DelicateCoroutinesApi::class)
     fun requestLocation(callback: LocationCallback) {
         // 使用 GlobalScope 启动协程替代 new Thread
         // 注意：在 ApplicationHook 中最好使用受控的 Scope，这里作为单例工具类暂时用 GlobalScope

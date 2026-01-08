@@ -100,11 +100,18 @@ class CommandService : Service() {
         super.onCreate()
         Log.d(TAG, "CommandService onCreate")
 
-        // 初始化 ShellManager
-        ensureShellManager()
-
+        // 立即启动前台服务，避免超时
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification())
+
+        // 延迟初始化 ShellManager（不阻塞前台服务启动）
+        serviceScope.launch {
+            try {
+                ensureShellManager()
+            } catch (e: Exception) {
+                Log.e(TAG, "ShellManager 初始化失败", e)
+            }
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder {

@@ -1942,9 +1942,12 @@ class AntFarm : ModelTask() {
     // 抽抽乐执行
     private suspend fun playChouChouLe() {
         val ccl = ChouChouLe()
-        ccl.chouchoule()
-        Status.setFlagToday("farm::chouChouLeFinished")
-        Log.farm("今日抽抽乐已完成")
+        if (ccl.chouchoule()) {
+            Status.setFlagToday("farm::chouChouLeFinished")
+            Log.farm("今日抽抽乐已完成")
+        } else {
+            Log.record(TAG, "抽抽乐尚有未完成项（请检查是否需要验证）")
+        }
     }
     private suspend fun handleChouChouLeLogic() {
         // 1. 检查抽抽乐是否已完成

@@ -25,6 +25,8 @@ import kotlin.random.Random
 @Composable
 fun WatermarkLayer(
     modifier: Modifier = Modifier,
+    // 🔥 核心修改：接收 UID 列表作为参数，而不是读取静态变量
+    uidList: List<String?> = verifuids,
     autoRefresh: Boolean = true,
     refreshIntervalMs: Long = 1000L,
     refreshTrigger: Any? = null,
@@ -32,14 +34,10 @@ fun WatermarkLayer(
 ) {
     val density = LocalDensity.current
     val textSizePx = with(density) { 13.sp.toPx() }
-
-    // 1. 获取颜色 (Compose State，变化时触发绘制)
     val textColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f).toArgb()
 
-    // 2. 时间状态
     var currentTime by remember { mutableStateOf(TimeUtil.getFormatDateTime()) }
 
-    // 3. 自动刷新
     if (autoRefresh) {
         LaunchedEffect(Unit) {
             while (true) {
@@ -49,30 +47,33 @@ fun WatermarkLayer(
         }
     }
 
-    // 4. 准备文本数据
-    val textLines = remember(verifuids, currentTime, refreshTrigger) {
+    // 4. 计算文本行
+    // 🔥 依赖项改为传入的 uidList
+    val textLines = remember(uidList, currentTime, refreshTrigger) {
         val prefixLines = listOf("免费模块仅供学习,勿在国内平台传播!!")
         val suffix = "Now: $currentTime"
-        val uidLines = if (verifuids.isEmpty()) {
+
+        // 使用传入的 uidList 进行判断
+        val uidLines = if (uidList.isEmpty()) {
             listOf("未载入账号", "请启用模块后重启一次支付宝", "确保模块生成对应账号配置")
         } else {
-            verifuids.mapIndexed { index, uid -> "UID${index + 1}: $uid" }
+            uidList.mapIndexed { index, uid -> "UID${index + 1}: $uid" }
         }
+
         val versionLines = listOf(
             "Ver: ${BuildConfig.VERSION_NAME}.${BuildConfig.VERSION_CODE}",
             "Build: ${BuildConfig.BUILD_DATE}",
         )
+
         prefixLines + uidLines + listOf(suffix) + versionLines
     }
 
-    // 5. 随机偏移 (只在首次组合时生成)
     val offsetX = remember { Random.nextInt(-200, 200).toFloat() }
     val offsetY = remember { Random.nextInt(-200, 200).toFloat() }
 
     Box(
         modifier = modifier.drawWithCache {
-            // A. 在 drawWithCache 的 lambda 中创建/更新 Paint 对象
-            // 这样只有在 size 变化或者 State 变化需要重绘时才会执行
+            // ... (Paint 和 draw 逻辑保持不变，完全不需要改动) ...
             val paint = Paint().apply {
                 color = textColor
                 textSize = textSizePx
@@ -90,34 +91,20 @@ fun WatermarkLayer(
             val rotationDegrees = -30f
 
             onDrawWithContent {
-                // 1. 绘制内容 (原本的 UI)
                 drawContent()
-
-                // 2. 绘制水印 (覆盖在上面)
                 drawContext.canvas.nativeCanvas.apply {
                     withSave {
                         val width = size.width
                         val height = size.height
-
                         rotate(rotationDegrees, width / 2, height / 2)
-
                         var y = -height + offsetY
                         var yIndex = 0
-
-                        // 优化：增加边界检查，避免绘制过多不可见的文本
-                        // 这里逻辑保持不变，但因为是在 Draw 阶段执行，效率更高
                         while (y < height * 2) {
                             var x = -width + offsetX
                             if (yIndex % 2 == 1) x += horizontalSpacing / 2
-
                             while (x < width * 2) {
                                 textLines.forEachIndexed { index, line ->
-                                    drawText(
-                                        line,
-                                        x,
-                                        y + index * fontHeight,
-                                        paint
-                                    )
+                                    drawText(line, x, y + index * fontHeight, paint)
                                 }
                                 x += horizontalSpacing
                             }

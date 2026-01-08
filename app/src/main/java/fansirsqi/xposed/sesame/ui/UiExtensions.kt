@@ -20,8 +20,6 @@ import fansirsqi.xposed.sesame.entity.UserEntity
 import fansirsqi.xposed.sesame.util.Detector
 import fansirsqi.xposed.sesame.util.Log
 import fansirsqi.xposed.sesame.util.ToastUtil
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 
 /**
  * 扩展函数：打开浏览器
@@ -152,63 +150,3 @@ fun Context.performNavigationToSettings(user: UserEntity) {
     }
 }
 
-
-/**
- * 扩展函数：显示用户选择弹窗
- * 封装了原本复杂的 StringDialog 调用逻辑
- */
-fun Context.showUserSelectionDialog(
-    userList: List<UserEntity>,
-    onUserSelected: (UserEntity) -> Unit
-) {
-    if (userList.isEmpty()) {
-        ToastUtil.showToast(this, "暂无用户配置")
-        return
-    }
-
-    // 构造显示名称数组
-    val names = userList.map {
-        if (it.account != null) "${it.showName}: ${it.account}" else it.showName
-    }.toTypedArray()
-
-    val latch = CountDownLatch(1)
-
-    // 注意：这里假设 StringDialog 是你项目中已有的工具类
-    // 如果 StringDialog 也是你写的，可以考虑把它也改成更现代的写法
-    val dialog = StringDialog.showSelectionDialog(
-        this,
-        "📌 请选择配置",
-        names,
-        { d, which ->
-            onUserSelected(userList[which])
-            d.dismiss()
-            latch.countDown()
-        },
-        "返回",
-        { d ->
-            d.dismiss()
-            latch.countDown()
-        }
-    )
-
-    // 自动选择逻辑 (保留原代码逻辑)
-    if (userList.size in 1..2) {
-        Thread {
-            try {
-                if (!latch.await(800, TimeUnit.MILLISECONDS)) {
-                    // 需要切回主线程操作 UI
-                    if (this is android.app.Activity) {
-                        this.runOnUiThread {
-                            if (dialog.isShowing) {
-                                onUserSelected(userList.last())
-                                dialog.dismiss()
-                            }
-                        }
-                    }
-                }
-            } catch (_: InterruptedException) {
-                Thread.currentThread().interrupt()
-            }
-        }.start()
-    }
-}
