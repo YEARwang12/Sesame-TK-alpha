@@ -101,7 +101,6 @@
             android:name="fansirsqi.xposed.sesame.service.CommandService"
             android:enabled="true"
             android:exported="true"
-            android:process=":command"
             android:foregroundServiceType="specialUse">
             <intent-filter>
                 <action android:name="fansirsqi.xposed.sesame.action.BIND_COMMAND_SERVICE" />

@@ -2,6 +2,7 @@ package fansirsqi.xposed.sesame.ui
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.widget.EditText
 import android.widget.Toast
@@ -20,6 +21,7 @@ import fansirsqi.xposed.sesame.util.Detector.getApiUrl
 import fansirsqi.xposed.sesame.util.FansirsqiUtil
 import fansirsqi.xposed.sesame.util.Log
 import fansirsqi.xposed.sesame.util.ToastUtil
+import rikka.shizuku.Shizuku
 
 /**
  * 扩展功能页面
@@ -197,7 +199,7 @@ class ExtendActivity : BaseActivity() {
 
             extendFunctions.add(
                 ExtendFunctionItem("TestShow") {
-                    ToastUtil.showToast(this, "测试Toast")
+                    ToastUtil.showToast(this, isShizukuReady().toString())
                 }
             )
         }
@@ -217,4 +219,19 @@ class ExtendActivity : BaseActivity() {
         sendBroadcast(intent) // 发送广播
         Log.debug(TAG, "扩展工具主动调用广播查询📢：$type")
     }
+
+    fun isShizukuReady(): Boolean {
+        return try {
+            val isBinderAlive = Shizuku.pingBinder()
+            val hasPermission = if (isBinderAlive) Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED else false
+
+            Log.d(TAG, "Shizuku检查: Binder活着? $isBinderAlive, 有权限? $hasPermission, 进程PID: ${android.os.Process.myPid()}")
+
+            return isBinderAlive && hasPermission
+        } catch (e: Exception) {
+            Log.e(TAG, "isShizukuReady", e)
+            false
+        }
+    }
 }
+

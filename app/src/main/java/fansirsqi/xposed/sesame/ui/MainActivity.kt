@@ -16,7 +16,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -64,10 +63,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -83,23 +82,25 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
 import fansirsqi.xposed.sesame.BuildConfig
 import fansirsqi.xposed.sesame.SesameApplication.Companion.hasPermissions
 import fansirsqi.xposed.sesame.SesameApplication.Companion.preferencesKey
 import fansirsqi.xposed.sesame.entity.UserEntity
 import fansirsqi.xposed.sesame.newui.DeviceInfoCard
-import fansirsqi.xposed.sesame.newui.DeviceInfoUtil
 import fansirsqi.xposed.sesame.newui.WatermarkLayer
 import fansirsqi.xposed.sesame.newutil.IconManager
 import fansirsqi.xposed.sesame.ui.compose.CommonAlertDialog
 import fansirsqi.xposed.sesame.ui.log.LogViewerComposeActivity
 import fansirsqi.xposed.sesame.ui.theme.AppTheme
+import fansirsqi.xposed.sesame.util.CommandUtil
 import fansirsqi.xposed.sesame.util.Detector
 import fansirsqi.xposed.sesame.util.Files
 import fansirsqi.xposed.sesame.util.Log
 import fansirsqi.xposed.sesame.util.PermissionUtil
 import fansirsqi.xposed.sesame.util.ToastUtil
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import rikka.shizuku.Shizuku
 import rikka.shizuku.ShizukuProvider
 import java.io.File
@@ -111,8 +112,18 @@ class MainActivity : ComponentActivity() {
     // Shizuku 监听器
     private val shizukuListener = Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
         if (requestCode == 1234) {
-            val msg = if (grantResult == PackageManager.PERMISSION_GRANTED) "Shizuku 授权成功！" else "Shizuku 授权被拒绝"
-            ToastUtil.showToast(this, msg)
+            if (grantResult == PackageManager.PERMISSION_GRANTED) {
+                ToastUtil.showToast(this, "Shizuku 授权成功！")
+
+                // 关键修改：
+                lifecycleScope.launch {
+                    CommandUtil.executeCommand(this@MainActivity, "echo init_shizuku")
+                    delay(200)
+                    viewModel.refreshDeviceInfo(this@MainActivity)
+                }
+            } else {
+                ToastUtil.showToast(this, "Shizuku 授权被拒绝")
+            }
         }
     }
 
@@ -141,6 +152,7 @@ class MainActivity : ComponentActivity() {
             val activeUser by viewModel.activeUser.collectAsStateWithLifecycle()
 
             val moduleStatus by viewModel.moduleStatus.collectAsStateWithLifecycle()
+
 
             //  获取实时的 UserEntity 列表
             val userList by viewModel.userList.collectAsStateWithLifecycle()
@@ -287,7 +299,10 @@ fun StatusCard(
     onClick: () -> Unit
 ) {
     ElevatedCard(
-        modifier = Modifier.clickable(onClick = onClick),
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp),
         colors = CardDefaults.elevatedCardColors(
             containerColor =
                 when (status) {
@@ -295,7 +310,7 @@ fun StatusCard(
                     is MainViewModel.ModuleStatus.NotActivated -> MaterialTheme.colorScheme.errorContainer
                     is MainViewModel.ModuleStatus.Loading -> MaterialTheme.colorScheme.surfaceVariant
                 }
-        )
+        ),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -306,9 +321,10 @@ fun StatusCard(
                     is MainViewModel.ModuleStatus.Activated -> {
                         Icon(Icons.Outlined.CheckCircle, "已激活")
                         Column(Modifier.padding(start = 20.dp)) {
-                            Text(text = "${status.frameworkName} ${status.frameworkVersion}", style = MaterialTheme.typography.titleMedium)
+                            Text(text = "Activated", style = MaterialTheme.typography.titleMedium)
+                            Text(text = "Version: ${BuildConfig.VERSION_NAME} ${BuildConfig.VERSION_CODE}", style = MaterialTheme.typography.bodyMedium)
                             Spacer(Modifier.height(4.dp))
-                            Text(text = "Actived API ${status.apiVersion}", style = MaterialTheme.typography.bodyMedium)
+                            Text(text = "Activated by ${status.frameworkName} ${status.frameworkVersion} API ${status.apiVersion}", style = MaterialTheme.typography.bodySmall)
                         }
                     }
 
@@ -377,13 +393,11 @@ fun MainScreen(
     // 控制清空配置弹窗的状态
     var showClearConfigDialog by remember { mutableStateOf(false) }
 
-    // 获取设备信息
-    val deviceInfoMap by produceState<Map<String, String>?>(initialValue = null) {
-        value = DeviceInfoUtil.showInfo(context)
-        repeat(1) {
-            delay(200)
-            value = DeviceInfoUtil.showInfo(context)
-        }
+    // 改为观察 ViewModel
+    val deviceInfoMap by viewModel.deviceInfo.collectAsStateWithLifecycle()
+    // 首次进入界面时，触发一次加载
+    LaunchedEffect(Unit) {
+        viewModel.refreshDeviceInfo(context)
     }
 
     Scaffold(
@@ -513,17 +527,16 @@ fun MainScreen(
                 } else {
                     CircularProgressIndicator()
                 }
-
                 Spacer(modifier = Modifier.height(2.dp))
-
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 130.dp)
-                        .padding(8.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .combinedClickable(
+                        .heightIn(min = 112.dp)
+                        .padding(8.dp) // 1. 外边距 (Margin)：让卡片和屏幕边缘有距离
+                        .clip(RoundedCornerShape(12.dp)) // 2. 裁剪形状：限制水波纹为圆角 (建议稍微大一点的圆角)
+//                        .background(MaterialTheme.colorScheme.surfaceContainer) // 3. 背景色：给点击区域一个底色，让它看起来像个卡片
+                        .combinedClickable( // 4. 点击事件：必须在 clip 之后，padding(内) 之前
                             enabled = !isOneWordLoading,
                             onClick = { onEvent(MainActivity.MainUiEvent.RefreshOneWord) },
                             onLongClick = {
@@ -531,7 +544,7 @@ fun MainScreen(
                                 ToastUtil.showToast(context, "准备起飞🛫")
                             }
                         )
-                        .padding(8.dp)
+                        .padding(16.dp) // 5. 内边距 (Padding)：让里面的文字和卡片边缘保持距离，不要贴边
                 )
                 {
                     AnimatedContent(
@@ -627,7 +640,7 @@ fun MenuButton(
 ) {
     FilledTonalButton(
         onClick = onClick,
-        modifier = modifier.height(80.dp),
+        modifier = modifier.height(72.dp),
         shape = RoundedCornerShape(16.dp),
         colors = ButtonDefaults.filledTonalButtonColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -640,7 +653,7 @@ fun MenuButton(
             verticalArrangement = Arrangement.Center
         ) {
             Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(28.dp))
-            Spacer(modifier = Modifier.height(5.dp))
+            Spacer(modifier = Modifier.height(2.dp))
             Text(text = text, style = MaterialTheme.typography.labelMedium, maxLines = 1)
         }
     }

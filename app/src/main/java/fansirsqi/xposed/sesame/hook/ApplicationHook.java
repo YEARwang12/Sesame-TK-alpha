@@ -15,6 +15,8 @@ import fansirsqi.xposed.sesame.hook.keepalive.SmartSchedulerManager;
 import fansirsqi.xposed.sesame.hook.server.ModuleHttpServerManager;
 import fansirsqi.xposed.sesame.hook.simple.SimplePageManager;
 import fansirsqi.xposed.sesame.hook.internal.LocationHelper;
+import fansirsqi.xposed.sesame.newutil.ModuleStatus;
+import fansirsqi.xposed.sesame.newutil.StatusManager;
 import fansirsqi.xposed.sesame.util.*;
 import kotlin.Unit;
 import lombok.Setter;
@@ -305,12 +307,22 @@ public class ApplicationHook {
         }
     }
 
+    /**
+     * lsposed 入口
+     *
+     * @param lpparam PackageLoadedParam
+     */
     public void loadPackage(XposedModuleInterface.PackageLoadedParam lpparam) {
         if (!General.PACKAGE_NAME.equals(lpparam.getPackageName())) return;
         classLoader = lpparam.getClassLoader();
         handleHookLogic(classLoader, lpparam.getPackageName(), lpparam.getApplicationInfo().sourceDir, lpparam);
     }
 
+    /**
+     * xp 82 入口
+     *
+     * @param lpparam PackageLoadedParam
+     */
     public void loadPackageCompat(XC_LoadPackage.LoadPackageParam lpparam) {
         if (!General.PACKAGE_NAME.equals(lpparam.packageName)) return;
         classLoader = lpparam.classLoader;
@@ -330,6 +342,8 @@ public class ApplicationHook {
         }
         finalProcessName = processName;
 
+
+
         // 2. 【关键修复】进程过滤
         // 判断是否为主进程
         boolean isMainProcess = General.PACKAGE_NAME.equals(processName);
@@ -346,6 +360,10 @@ public class ApplicationHook {
         DataStore.INSTANCE.init(Files.CONFIG_DIR);
         if (hooked) return;
         hooked = true;
+
+        // framework Check
+        String frameworkName = ModuleStatus.INSTANCE.detectFramework(classLoader);
+        StatusManager.INSTANCE.updateStatus(frameworkName, packageName);
 
 
         VersionHook.installHook(classLoader);

@@ -805,11 +805,19 @@ public class AntMemberRpcCall {
         }
     }
 
+
     /**
-     * 查询可领取的贴纸列表
+     * @brief 查询当月是否有可领取的贴纸
+     * @param year 年份
+     * @param month 月份
      */
     public static String queryStickerCanReceive(String year, String month) {
-        String data = "[{\"isFirstShow\":\"false\",\"month\":\"" + month + "\",\"year\":\"" + year + "\"}]";
+        String data = "[{" +
+                "\"isFirstShow\":\"false\"," +
+                "\"month\":\"" + month + "\"," +
+                "\"scene\":\"\"," +
+                "\"year\":\"" + year + "\"" +
+                "}]";
         return RequestManager.requestString("alipay.memberasset.sticker.queryStickerCanReceive", data);
     }
 

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -64,7 +65,7 @@ fun DeviceInfoCard(info: Map<String, String>) {
                     }
 
                     else -> {
-                        Text(text = "$label: $value", fontSize = 12.sp)
+                        Text(text = "$label: $value", fontSize = 12.sp, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
                 Spacer(modifier = Modifier.height(1.dp))
@@ -104,24 +105,28 @@ object DeviceInfoUtil {
     }
 
     suspend fun showInfo(context: Context): Map<String, String> = withContext(Dispatchers.IO) {
+        val deviceName = getDeviceName(context)
+        val verifyId = getSn(context)
+
+
         val currentShellType = CommandUtil.getShellType(context)
+
 
         val permissionStatus = when (currentShellType) {
             "RootShell" -> "Root ✔"
             "ShizukuShell" -> "Shizuku ✔"
-            "UserShell" -> "User ✔"
             "no_executor" -> "未授权滑块服务 ❌"
             else -> "未知 ❌"
         }
 
         mapOf(
             "Product" to "${Build.MANUFACTURER} ${Build.PRODUCT}",
-            "Device" to getDeviceName(context),
+            "Device" to deviceName,
             "Android Version" to "${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})",
-            "Verify ID" to getSn(context),
+            "System Version" to "${Build.DISPLAY}",
+            "Verify ID" to verifyId,
             "Captcha Permission" to permissionStatus,
-            "Module Version" to "v${BuildConfig.VERSION_NAME} ${BuildConfig.VERSION_CODE}",
-            "Module Build" to "${BuildConfig.BUILD_DATE} ${BuildConfig.BUILD_TIME}"
+            "Build Date" to "${BuildConfig.BUILD_DATE} ${BuildConfig.BUILD_TIME}"
         )
     }
 }

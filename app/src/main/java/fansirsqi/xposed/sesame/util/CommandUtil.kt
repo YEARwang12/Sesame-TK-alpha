@@ -8,13 +8,18 @@ import android.content.ServiceConnection
 import android.os.Build
 import android.os.IBinder
 import android.os.RemoteException
+import android.util.Log
 import fansirsqi.xposed.sesame.ICallback
 import fansirsqi.xposed.sesame.ICommandService
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.atomic.AtomicBoolean
-import android.util.Log
+
 /**
  * 命令服务客户端工具类
  * 负责与 CommandService 建立连接并通过 AIDL 发送指令
@@ -84,14 +89,9 @@ object CommandUtil {
             if (isBound.get() && commandService?.asBinder()?.isBinderAlive == true) {
                 return@withLock true
             }
-            Log.i(TAG, "========== 开始绑定 CommandService ==========")
-            Log.d(TAG, "当前进程 PID: ${android.os.Process.myPid()}")
-            Log.d(TAG, "当前包名: ${context.packageName}")
-            Log.d(TAG, "目标包名: $PACKAGE_NAME")
             // 重置状态
             handleServiceLost()
             connectionDeferred = CompletableDeferred()
-
             // 构建 Intent
             val intent = Intent().apply {
                 action = ACTION_BIND
@@ -102,21 +102,21 @@ object CommandUtil {
                 )
             }
 
-            Log.d(TAG, "Intent 配置:")
-            Log.d(TAG, "  - action: ${intent.action}")
-            Log.d(TAG, "  - package: ${intent.`package`}")
-            Log.d(TAG, "  - component: ${intent.component}")
+            Log.i(TAG, "Intent 配置:")
+            Log.i(TAG, "  - action: ${intent.action}")
+            Log.i(TAG, "  - package: ${intent.`package`}")
+            Log.i(TAG, "  - component: ${intent.component}")
 
             try {
                 // 步骤1: 先尝试启动服务（确保服务进程存在）
                 try {
-                    Log.d(TAG, "步骤1: 尝试启动 Service...")
+                    Log.i(TAG, "步骤1: 尝试启动 Service...")
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         context.applicationContext.startForegroundService(intent)
                     } else {
                         context.applicationContext.startService(intent)
                     }
-                    Log.d(TAG, "✓ startService 调用成功")
+                    Log.i(TAG, "✓ startService 调用成功")
                 } catch (e: SecurityException) {
                     Log.w(TAG, "✗ startService 失败 (SecurityException): ${e.message}")
                 } catch (e: Exception) {
@@ -127,14 +127,14 @@ object CommandUtil {
                 delay(800)
 
                 // 步骤2: 绑定服务
-                Log.d(TAG, "步骤2: 尝试绑定 Service...")
+                Log.i(TAG, "步骤2: 尝试绑定 Service...")
                 val bindResult = context.applicationContext.bindService(
                     intent,
                     serviceConnection,
                     Context.BIND_AUTO_CREATE or Context.BIND_IMPORTANT
                 )
 
-                Log.d(TAG, "bindService 返回: $bindResult")
+                Log.i(TAG, "bindService 返回: $bindResult")
 
                 if (!bindResult) {
                     Log.e(TAG, "❌ bindService 返回 false")
@@ -148,7 +148,7 @@ object CommandUtil {
                     try {
                         val pm = context.packageManager
                         val appInfo = pm.getApplicationInfo(PACKAGE_NAME, 0)
-                        Log.d(TAG, "模块已安装: ${appInfo.enabled}")
+                        Log.i(TAG, "模块已安装: ${appInfo.enabled}")
                     } catch (e: Exception) {
                         Log.e(TAG, "模块未安装或无法访问: ${e.message}")
                     }
@@ -157,7 +157,7 @@ object CommandUtil {
                 }
 
                 // 步骤3: 等待连接回调
-                Log.d(TAG, "步骤3: 等待连接回调...")
+                Log.i(TAG, "步骤3: 等待连接回调...")
                 val success = withTimeoutOrNull(BIND_TIMEOUT_MS) {
                     connectionDeferred?.await()
                 } ?: false
@@ -202,7 +202,7 @@ object CommandUtil {
 
         val callback = object : ICallback.Stub() {
             override fun onSuccess(output: String) {
-                Log.d(TAG, "命令执行成功")
+                Log.i(TAG, "命令执行成功")
                 resultDeferred.complete(output)
             }
 
@@ -213,7 +213,7 @@ object CommandUtil {
         }
 
         try {
-            Log.d(TAG, "发送命令: $command")
+            Log.i(TAG, "发送命令: $command")
             service.executeCommand(command, callback)
 
             // 等待结果
@@ -259,7 +259,7 @@ object CommandUtil {
         if (isBound.compareAndSet(true, false)) {
             try {
                 context.applicationContext.unbindService(serviceConnection)
-                Log.d(TAG, "已主动解绑服务")
+                Log.i(TAG, "已主动解绑服务")
             } catch (e: Exception) {
                 Log.w(TAG, "解绑失败: ${e.message}")
             } finally {
