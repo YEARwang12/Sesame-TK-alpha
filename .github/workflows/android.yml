@@ -1,0 +1,159 @@
+name: 📦Auto Build for N
+run-name: 📦 ${{ github.actor }} @ Github Action
+
+on:
+  #  push:
+  #    branches: [ "main" ]
+  #  pull_request:
+  #    branches: [ "main" ]
+  release:
+    types: [ published ]
+#  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: ⏰ Set Timezone to Asia/Shanghai
+        run: |
+          sudo timedatectl set-timezone Asia/Shanghai
+          echo "Current time: $(date)"
+
+      - name: 👨🏻‍💻 Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.head_ref || github.ref_name }}
+      - name: ☕ Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "zulu"
+          cache: gradle
+      - name: 🤝 Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+          gradle-version: wrapper
+
+      - name: ☎️ Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: 🔥 Build with Gradle
+        run: ./gradlew assembleRelease -Pversion=${{ github.ref_name }}
+
+      - name: 📊 Locate APKs and Set Outputs
+        id: locate_apks
+        run: |
+          release_dir="app/build/outputs/apk/release"
+          arm64_apk=$(find "$release_dir" -name "*-arm64-v8a-*.apk" | head -n 1)
+          echo "arm64_apk=$arm64_apk" >> $GITHUB_OUTPUT
+
+      - name: ⏳ Copy APKs to staging for signing
+        run: |
+          mkdir -p app/build/outputs/apk/all
+          cp "${{ steps.locate_apks.outputs.arm64_apk }}" app/build/outputs/apk/all/
+
+      - name: 🔐 Sign APKs
+        id: sign_apks
+        uses: ilharp/sign-android-release@v2
+        with:
+          releaseDir: app/build/outputs/apk/all
+          signingKey: ${{ secrets.ANDROID_SIGNING_KEY }}
+          keyAlias: ${{ secrets.ANDROID_KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          buildToolsVersion: 36.0.0
+
+      - name: 📦 Extract Signed APK Paths
+        id: extract_apks
+        run: |
+          IFS=':' read -r -a files <<< "${{ steps.sign_apks.outputs.signedFiles }}"
+          for file in "${files[@]}"; do
+            if [[ "$file" == *arm64-v8a* ]]; then
+              echo "signed_arm64=$file" >> $GITHUB_OUTPUT
+            fi
+          done
+
+      - name: 🚀 Upload APK - arm64-v8a
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-arm64-v8a
+          path: ${{ steps.extract_apks.outputs.signed_arm64 }}
+
+      - name: 🛠️ Extract file names and version
+        id: extract_info
+        run: |
+          arm64_file=$(basename "${{ steps.extract_apks.outputs.signed_arm64 }}")
+          version="${{ github.ref_name }}"
+          echo "arm64_file=$arm64_file" >> $GITHUB_OUTPUT
+          echo "version=$version" >> $GITHUB_OUTPUT
+
+      - name: 🎨 Generate APKS Checksum
+        run: |
+          sha256sum ${{ steps.extract_apks.outputs.signed_arm64 }} > CHECKSUMS-Sesame-arm64-v8a-${{ steps.extract_info.outputs.version }}.apk.sha256
+  
+      - name: 📝 Generate Dynamic Message
+        id: commit_info
+        shell: bash
+        run: |
+          # 初始化一个临时文件名
+          MESSAGE_FILE=$(mktemp)
+
+          if [[ "${{ github.event_name }}" == "push" && -n '${{ toJSON(github.event.commits) }}' && '${{ toJSON(github.event.commits) }}' != 'null' && '${{ toJSON(github.event.commits) }}' != '[]' ]]; then
+            echo "Source: Push Event"
+            # 【修复】使用正确的 jq 语法截取 commit ID 前7个字符
+            echo '${{ toJSON(github.event.commits) }}' | jq -r '.[] | "• \(.message | split("\n")[0]) (<a href=\"\(.url)\">\(.id[0:7])</a>)"' > "$MESSAGE_FILE"
+
+          elif [[ "${{ github.event_name }}" == "pull_request" && -n '${{ toJSON(github.event.pull_request) }}' && '${{ toJSON(github.event.pull_request) }}' != 'null' ]]; then
+            echo "Source: Pull Request Event"
+            PR_TITLE="${{ github.event.pull_request.title }}"
+            PR_URL="${{ github.event.pull_request.html_url }}"
+            API_URL="${{ github.event.pull_request.commits_url }}"
+
+            # 写入 PR 标题
+            echo -e "<b>PR:</b> <a href=\"$PR_URL\">$PR_TITLE</a>\n\n<b>Commits:</b>" > "$MESSAGE_FILE"
+
+            COMMITS_JSON=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                                -H "Accept: application/vnd.github.v3+json" \
+                                "$API_URL")
+
+            # 【修复】使用正确的 jq 语法截取 commit SHA 前7个字符
+            echo "$COMMITS_JSON" | jq -r 'if type == "array" then .[] | "• \(.commit.message | split("\n")[0]) (<a href=\"\(.html_url)\">\(.sha[0:7])</a>)" else "" end' >> "$MESSAGE_FILE"
+
+          else
+            echo "Source: Manual or unknown"
+            echo "手动触发构建" > "$MESSAGE_FILE"
+          fi
+
+          # 使用 GitHub Actions 官方推荐的多行输出语法
+          {
+            echo "message_string<<EOF"
+            cat "$MESSAGE_FILE"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          # 清理临时文件
+          rm "$MESSAGE_FILE"
+
+      - name: 🚀 Upload Assets to Source Release
+        if: github.event_name == 'release' && github.event.action == 'published'
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.event.release.tag_name || steps.extract_info.outputs.version }}
+          files: |
+            ${{ steps.extract_apks.outputs.signed_arm64 }}
+            CHECKSUMS-Sesame-arm64-v8a-${{ steps.extract_info.outputs.version }}.apk.sha256
+          tag_name: ${{ steps.extract_info.outputs.version}}
+          draft: false
+          append_body: true
+          make_latest: true
+          generate_release_notes: true
+          body: |
+            ## ✨What's Changed
+
+            > ## 下载说明
+            <b>- arm64-v8a:</b> 适用于64位ARM设备 (主流新手机)
+            >
+            > **如果不确定，请下载 `universal` 版本。**
