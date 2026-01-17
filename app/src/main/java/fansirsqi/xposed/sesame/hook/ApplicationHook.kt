@@ -382,7 +382,18 @@ class ApplicationHook {
             }
 
             when (action) {
-                BroadcastActions.RESTART -> execute({ initHandler() })
+                BroadcastActions.RESTART -> execute(Runnable {
+                    val targetUserId = intent.getStringExtra("userId")
+                    val currentUserId = HookUtil.getUserId(classLoader!!)
+                    if (targetUserId != null && targetUserId != currentUserId) {
+                        record(
+                            TAG,
+                            "忽略非当前用户的重启广播: target=" + targetUserId + ", current=" + currentUserId
+                        )
+                        return@Runnable
+                    }
+                    initHandler()
+                })
                 BroadcastActions.RE_LOGIN -> reOpenApp()
                 BroadcastActions.RPC_TEST -> handleRpcTest(intent)
                 BroadcastActions.MANUAL_TASK -> {

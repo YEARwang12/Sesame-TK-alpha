@@ -13,6 +13,7 @@ import fansirsqi.xposed.sesame.entity.OtherEntityProvider.farmFamilyOption
 import fansirsqi.xposed.sesame.entity.ParadiseCoinBenefit
 import fansirsqi.xposed.sesame.hook.Toast
 import fansirsqi.xposed.sesame.hook.rpc.intervallimit.RpcIntervalLimit.addIntervalLimit
+import fansirsqi.xposed.sesame.model.BaseModel
 import fansirsqi.xposed.sesame.model.ModelFields
 import fansirsqi.xposed.sesame.model.ModelGroup
 import fansirsqi.xposed.sesame.model.modelFieldExt.BooleanModelField
@@ -144,6 +145,7 @@ class AntFarm : ModelTask() {
      * 遣返小鸡
      */
     private var sendBackAnimal: BooleanModelField? = null
+    private var timeSendBack: IntegerModelField? = null
 
     /**
      * 遣返方式
@@ -245,11 +247,110 @@ class AntFarm : ModelTask() {
     private var paradiseCoinExchangeBenefitList: SelectModelField? = null
 
     private var visitAnimal: BooleanModelField? = null
+    private var useSmartSchedulerManager: BooleanModelField? = null
     private var hasFence: Boolean = false       // 是否正在使用篱笆
     private var fenceCountDown: Int = 0
 
     override fun getFields(): ModelFields {
         val modelFields = ModelFields()
+        modelFields.addField(
+            ChoiceModelField(
+                "recallAnimalType",
+                "召回小鸡",
+                RecallAnimalType.ALWAYS,
+                RecallAnimalType.nickNames
+            ).also { recallAnimalType = it })
+        modelFields.addField(
+            BooleanModelField(
+                "feedAnimal",
+                "自动喂小鸡",
+                false
+            ).also { feedAnimal = it })
+        modelFields.addField(
+            BooleanModelField(
+                "doFarmTask",
+                "做饲料任务",
+                false
+            ).also { doFarmTask = it })
+        modelFields.addField(
+            StringModelField(
+                "doFarmTaskTime",
+                "饲料任务执行时间 | 默认8:30后执行",
+                "0830"
+            ).also { doFarmTaskTime = it })
+
+        modelFields.addField(
+            BooleanModelField(
+                "receiveFarmTaskAward",
+                "收取饲料奖励",
+                false
+            ).also { receiveFarmTaskAward = it })
+        modelFields.addField(
+            BooleanModelField(
+                "useBigEaterTool",
+                "加饭卡 | 使用",
+                false
+            ).also { useBigEaterTool = it })
+        modelFields.addField(
+            BooleanModelField(
+                "useAccelerateTool",
+                "加速卡 | 使用",
+                false
+            ).also { useAccelerateTool = it })
+        modelFields.addField(
+            BooleanModelField(
+                "useAccelerateToolContinue",
+                "加速卡 | 连续使用",
+                false
+            ).also { useAccelerateToolContinue = it })
+        modelFields.addField(
+            IntegerModelField("remainingTime", "饲料剩余时间大于多少时直接使用加速（分钟）（-1关闭）", 40).also { remainingTime = it }
+        )
+        modelFields.addField(
+            BooleanModelField(
+                "useAccelerateToolWhenMaxEmotion",
+                "加速卡 | 仅在满状态时使用",
+                false
+            ).also { useAccelerateToolWhenMaxEmotion = it })
+        modelFields.addField(
+            BooleanModelField(
+                "ignoreAcceLimit",
+                "按设置的时间进行游戏改分和抽抽乐",
+                false
+            ).also { ignoreAcceLimit = it })
+        modelFields.addField(
+            BooleanModelField(
+                "enableChouchoule",
+                "开启小鸡抽抽乐",
+                false
+            ).also { enableChouchoule = it })
+        modelFields.addField(
+            StringModelField(
+                "enableChouchouleTime",
+                "小鸡抽抽乐执行时间 | 默认9:00后执行",
+                "0900"
+            ).also { enableChouchouleTime = it })
+        modelFields.addField(
+            BooleanModelField(
+                "recordFarmGame",
+                "游戏改分(星星球、登山赛、飞行赛、揍小鸡)",
+                false
+            ).also { recordFarmGame = it })
+        modelFields.addField(
+            IntegerModelField("gameRewardMax", "游戏改分预计最大产出饲料量(g)", 180, 0, null).also { gameRewardMax = it }
+        )
+        modelFields.addField(
+            ListJoinCommaToStringModelField(
+                "farmGameTime",
+                "小鸡游戏时间(范围)",
+                ListUtil.newArrayList("2200-2400")
+            ).also { farmGameTime = it })
+        modelFields.addField(
+            BooleanModelField(
+                "enableDdrawGameCenterAward",
+                "开宝箱",
+                false
+            ).also { enableDdrawGameCenterAward = it })
         modelFields.addField(
             StringModelField(
                 "sleepTime",
@@ -263,26 +364,6 @@ class AntFarm : ModelTask() {
                 "0530"
             ).also { wakeUpTime = it })
         modelFields.addField(
-            ChoiceModelField(
-                "recallAnimalType",
-                "召回小鸡",
-                RecallAnimalType.ALWAYS,
-                RecallAnimalType.nickNames
-            ).also { recallAnimalType = it })
-        modelFields.addField(
-            BooleanModelField(
-                "rewardFriend",
-                "打赏好友",
-                false
-            ).also { rewardFriend = it })
-        modelFields.addField(
-            BooleanModelField(
-                "feedAnimal",
-                "自动喂小鸡",
-                false
-            ).also { feedAnimal = it })
-
-        modelFields.addField(
             SelectAndCountModelField(
                 "feedFriendAnimalList",
                 "帮喂小鸡 | 好友列表",
@@ -292,6 +373,12 @@ class AntFarm : ModelTask() {
             ).also {
                 feedFriendAnimalList = it
             })
+        modelFields.addField(
+            BooleanModelField(
+                "rewardFriend",
+                "打赏好友",
+                false
+            ).also { rewardFriend = it })
         modelFields.addField(BooleanModelField("getFeed", "一起拿饲料", false).also {
             getFeed = it
         })
@@ -351,6 +438,9 @@ class AntFarm : ModelTask() {
                 false
             ).also { sendBackAnimal = it })
         modelFields.addField(
+            IntegerModelField("timeSendBack", "投喂饲料后间隔时间赶鸡(分,<10关闭)", 0, 0, null).also { timeSendBack = it }
+        )
+        modelFields.addField(
             ChoiceModelField(
                 "sendBackAnimalWay",
                 "遣返 | 方式",
@@ -408,39 +498,6 @@ class AntFarm : ModelTask() {
             ).also { donationCount = it })
         modelFields.addField(
             BooleanModelField(
-                "useBigEaterTool",
-                "加饭卡 | 使用",
-                false
-            ).also { useBigEaterTool = it })
-        modelFields.addField(
-            BooleanModelField(
-                "useAccelerateTool",
-                "加速卡 | 使用",
-                false
-            ).also { useAccelerateTool = it })
-        modelFields.addField(
-            BooleanModelField(
-                "useAccelerateToolContinue",
-                "加速卡 | 连续使用",
-                false
-            ).also { useAccelerateToolContinue = it })
-        modelFields.addField(
-            BooleanModelField(
-                "ignoreAcceLimit",
-                "按设置的时间进行游戏改分和抽抽乐",
-                false
-            ).also { ignoreAcceLimit = it })
-        modelFields.addField(
-            IntegerModelField("remainingTime", "饲料剩余时间大于多少时直接使用加速（分钟）（-1关闭）", 40).also { remainingTime = it }
-        )
-        modelFields.addField(
-            BooleanModelField(
-                "useAccelerateToolWhenMaxEmotion",
-                "加速卡 | 仅在满状态时使用",
-                false
-            ).also { useAccelerateToolWhenMaxEmotion = it })
-        modelFields.addField(
-            BooleanModelField(
                 "useSpecialFood",
                 "使用特殊食品",
                 false
@@ -457,26 +514,6 @@ class AntFarm : ModelTask() {
                 "庄园签到忽略饲料余量",
                 true
             ).also { signRegardless = it })
-        modelFields.addField(
-            BooleanModelField(
-                "doFarmTask",
-                "做饲料任务",
-                false
-            ).also { doFarmTask = it })
-        modelFields.addField(
-            StringModelField(
-                "doFarmTaskTime",
-                "饲料任务执行时间 | 默认8:30后执行",
-                "0830"
-            ).also { doFarmTaskTime = it })
-
-        modelFields.addField(
-            BooleanModelField(
-                "receiveFarmTaskAward",
-                "收取饲料奖励",
-                false
-            ).also { receiveFarmTaskAward = it })
-
         modelFields.addField(
             BooleanModelField(
                 "receiveFarmToolReward",
@@ -511,43 +548,10 @@ class AntFarm : ModelTask() {
             ).also { collectChickenDiary = it })
         modelFields.addField(
             BooleanModelField(
-                "enableChouchoule",
-                "开启小鸡抽抽乐",
-                false
-            ).also { enableChouchoule = it })
-        modelFields.addField(
-            StringModelField(
-                "enableChouchouleTime",
-                "小鸡抽抽乐执行时间 | 默认9:00后执行",
-                "0900"
-            ).also { enableChouchouleTime = it })
-        modelFields.addField(
-            BooleanModelField(
                 "listOrnaments",
                 "小鸡每日换装",
                 false
             ).also { listOrnaments = it })
-        modelFields.addField(
-            BooleanModelField(
-                "enableDdrawGameCenterAward",
-                "开宝箱",
-                false
-            ).also { enableDdrawGameCenterAward = it })
-        modelFields.addField(
-            BooleanModelField(
-                "recordFarmGame",
-                "游戏改分(星星球、登山赛、飞行赛、揍小鸡)",
-                false
-            ).also { recordFarmGame = it })
-        modelFields.addField(
-            IntegerModelField("gameRewardMax", "游戏改分预计最大产出饲料量(g)", 180, 0, null).also { gameRewardMax = it }
-        )
-        modelFields.addField(
-            ListJoinCommaToStringModelField(
-                "farmGameTime",
-                "小鸡游戏时间(范围)",
-                ListUtil.newArrayList("2200-2400")
-            ).also { farmGameTime = it })
         modelFields.addField(BooleanModelField("family", "家庭 | 开启", false).also { family = it })
         modelFields.addField(
             SelectModelField(
@@ -585,6 +589,12 @@ class AntFarm : ModelTask() {
                 "到访小鸡送礼",
                 false
             ).also { visitAnimal = it })
+        modelFields.addField(
+            BooleanModelField(
+                "useSmartSchedulerManager",
+                "使用SmartSchedulerManager定时蹲点任务",
+                false
+            ).also { useSmartSchedulerManager = it })
         return modelFields
     }
 
@@ -1259,7 +1269,8 @@ class AntFarm : ModelTask() {
                                         Log.printStackTrace(TAG,"蹲点投喂任务执行失败", e)
                                     }
                                 },
-                                execTime = nextFeedTime
+                                execTime = nextFeedTime,
+                                useSmartScheduler = useSmartSchedulerManager!!.value
                             )
                         )
                         Log.record(UserMap.getCurrentMaskName() + "小鸡的蹲点投喂时间[" + TimeUtil.getCommonDate(nextFeedTime)+"]")
@@ -2187,15 +2198,30 @@ class AntFarm : ModelTask() {
                         syncAnimalStatus(ownerFarmId)
                         val timeReached = TimeUtil.isNowAfterOrCompareTimeStr("1400")
                         val foodSpace = foodStockLimit - foodStock
-                        val haveEnoughSpace = if (needFarmGame) foodSpace > gameRewardMax!!.value else foodSpace >= 180
+                        var awardCount = 180
+                        try {
+                            val jaFarmSignList = signList.optJSONArray("signList")
+                            val currentSignKey = signList.optString("currentSignKey")
+                            if (jaFarmSignList != null && !currentSignKey.isNullOrEmpty()) {
+                                for (j in 0 until jaFarmSignList.length()) {
+                                    val joSign = jaFarmSignList.getJSONObject(j)
+                                    if (joSign.optString("signKey") == currentSignKey) {
+                                        awardCount = joSign.optString("awardCount", "180").toIntOrNull() ?: 180
+                                        break
+                                    }
+                                }
+                            }
+                        } catch (_: Exception) { }
+
+                        val haveEnoughSpace = if (needFarmGame) foodSpace > gameRewardMax!!.value else foodSpace >= awardCount
                         val shouldSign = signRegardless!!.value || timeReached || haveEnoughSpace
 
                         if (shouldSign) {
-                            if (farmSign(signList) && foodSpace < 180) {
+                            if (farmSign(signList) && foodSpace < awardCount) {
                                 Log.farm("签到实际获得饲料: ${foodSpace}g (因饲料空间不足)")
                             }
                         }  else {
-                            val msg = if (needFarmGame) "预留游戏改分的饲料空间，庄园暂不执行签到" else "饲料空间不足180g，庄园暂不签到"
+                            val msg = if (needFarmGame) "预留游戏改分的饲料空间，庄园暂不执行签到" else "饲料空间不足${awardCount}g，庄园暂不签到"
                             Log.record(TAG, "${msg}。14点后会强制签到；如已签到请忽略")
                         }
                     }
@@ -2354,6 +2380,43 @@ class AntFarm : ModelTask() {
                     // 安全获取foodStock字段，如果不存在则显示未知
                     val remainingFood = jo.optInt("foodStock", 0).coerceAtLeast(0)
                     Log.farm("${UserMap.getCurrentMaskName()}投喂小鸡🥣[180g]#剩余饲料${remainingFood}g")
+
+                    val interval = BaseModel.checkInterval.value
+                    var timeSendBackAnimal = 0
+                    if (timeSendBack!!.value in 10..interval){
+                        timeSendBackAnimal = timeSendBack!!.value
+                    } else if(timeSendBack!!.value > interval){
+                        Log.record(TAG, "设置个合理的喂食后赶鸡时间，建议 30 分钟")
+                    }
+                    if (sendBackAnimal!!.value && timeSendBackAnimal > 0) {
+                        try {
+                            val taskId = "KC|$ownerFarmId"
+                            val kcTime =
+                                TimeUtil.getCommonDate(System.currentTimeMillis() + timeSendBackAnimal * 60 * 1000L)
+                            val task = ChildModelTask(
+                                id = taskId,
+                                group = "KC",
+                                suspendRunnable = {
+                                    try {
+                                        Log.record(TAG, "🔔 蹲点赶鸡任务触发")
+                                        enterFarm()
+                                        syncAnimalStatus(ownerFarmId)
+                                        sendBackAnimal()
+                                    } catch (e: Exception) {
+                                        Log.error(TAG, "蹲点赶鸡任务执行失败: ${e.message}")
+                                        Log.printStackTrace(TAG, e)
+                                    }
+                                },
+                                execTime = System.currentTimeMillis() + timeSendBackAnimal * 60 * 1000L,
+                                useSmartScheduler = useSmartSchedulerManager!!.value
+                            )
+                            addChildTask(task)
+                            Log.record(UserMap.getCurrentMaskName() + "${timeSendBackAnimal}分钟后${kcTime}蹲点赶小鸡")
+
+                        } catch (e: Exception) {
+                            Log.printStackTrace(TAG, "创建蹲点赶鸡失败: ${e.message}", e)
+                        }
+                    }
                     return true
                 } else {
                     // 检查特定的错误码
