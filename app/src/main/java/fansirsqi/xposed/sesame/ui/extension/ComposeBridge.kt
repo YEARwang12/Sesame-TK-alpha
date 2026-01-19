@@ -10,8 +10,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import fansirsqi.xposed.sesame.ui.compose.CommonAlertDialog
 import fansirsqi.xposed.sesame.ui.theme.AppTheme
+import fansirsqi.xposed.sesame.ui.theme.ThemeManager
 
 object NativeComposeBridge {
 
@@ -38,7 +40,8 @@ object NativeComposeBridge {
                 composeView.setContent {
                     // 这里需要套一个 Theme，否则字体颜色可能会很怪
                     // 如果您有全局 Theme，替换 MaterialTheme
-                    AppTheme {
+                    val isDynamicColor by ThemeManager.isDynamicColor.collectAsStateWithLifecycle()
+                    AppTheme(dynamicColor = isDynamicColor) {
                         var show by remember { mutableStateOf(true) }
 
                         if (show) {

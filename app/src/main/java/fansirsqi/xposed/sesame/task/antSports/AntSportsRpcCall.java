@@ -150,8 +150,6 @@ public class AntSportsRpcCall {
         String args1 = "[{"
                 + "\"apiVersion\":\"energy\","
                 + "\"chInfo\":\"medical_health\","
-                + "\"clientOS\":\"android\","
-                + "\"features\":" + FEATURES + ","
                 + "\"medEnergyBallInfoRecordIds\":[\"" + medEnergyBallInfoRecordId + "\"],"
                 + "\"pickAllEnergyBall\":" + pickAllEnergyBall + ","
                 + "\"source\":\"SPORT\""
@@ -453,13 +451,7 @@ public class AntSportsRpcCall {
         return RequestManager.requestString("alipay.antsports.club.home.queryClubHome", args);
     }
 
-    // 兼容旧接口名：内部直接走 pickBubbleTaskEnergy（基于 bubbleId）
-    public static void collectBubble(String bubbleId) {
-        try {
-            pickBubbleTaskEnergy(bubbleId, false);
-        } catch (Throwable ignored) {
-        }
-    }
+
 
     // 查询训练项目
     // 对应文档：alipay.antsports.club.train.queryTrainItem

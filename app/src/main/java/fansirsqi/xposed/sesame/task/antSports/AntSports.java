@@ -1346,42 +1346,53 @@ public class AntSports extends ModelTask {
 
     // 训练好友-收金币
     private void processBubbleList(JSONObject object) {
-        if (object != null && object.has("bubbleList")) {
-            try {
-                JSONArray bubbleList = object.getJSONArray("bubbleList");
-                for (int j = 0; j < bubbleList.length(); j++) {
-                    JSONObject bubble = bubbleList.getJSONObject(j);
-                    // 获取 bubbleId
-                    String bubbleId = bubble.optString("bubbleId");
-                    // 调用 collectBubble 方法
-                    AntSportsRpcCall.collectBubble(bubbleId);
-                    // 输出日志信息
-                    int fullCoin = bubble.optInt("fullCoin");
-                    Log.other("训练好友💰️[获得:" + fullCoin + "金币]");
+        if (object == null || !object.has("bubbleList")) return;
 
-                    // 记录0金币情况
-                    if (fullCoin == 0) {
-                        zeroTrainCoinCount++;
-                        // 获取用户设置的0金币上限次数
-                        int maxCount = zeroCoinLimit.getValue();
-                        // 如果0金币次数达到设置的上限，记录今天日期，今日不再执行
-                        if (zeroTrainCoinCount >= maxCount) {
-                            String today = TimeUtil.getDateStr2();
-                            DataStore.INSTANCE.put(TRAIN_FRIEND_ZERO_COIN_DATE, today);
-                            Log.record(TAG, "✅ 训练好友获得0金币已超过" + maxCount + "次，今日不再执行，明日自动恢复");
-                            return; // 立即退出处理
-                        } else {
-                            // 显示当前计数情况
-                            Log.record(TAG, "训练好友0金币次数: " + zeroTrainCoinCount + "/" + maxCount);
-                        }
-                    }
+        try {
+            JSONArray bubbleList = object.getJSONArray("bubbleList");
+            for (int j = 0; j < bubbleList.length(); j++) {
+                JSONObject bubble = bubbleList.getJSONObject(j);
+                String bubbleId = bubble.optString("bubbleId");
 
-                    // 添加 1 秒的等待时间
-                    sleepCompat(1000);
+                // 1. 发起请求并获取响应
+                String responseStr = AntSportsRpcCall.pickBubbleTaskEnergy(bubbleId,false);
+                JSONObject responseJson = new JSONObject(responseStr);
+
+                // 2. 使用你提供的 ResChecker 进行统一拦截
+                if (!ResChecker.checkRes(TAG, responseJson)) {
+                    Log.error(TAG, "收取训练好友 失败: " + responseStr);
+                    continue;
                 }
-            } catch (Throwable t) {
-                Log.printStackTrace(TAG, "processBubbleList err:",t);
+
+                int amount = 0;
+                JSONObject data = responseJson.optJSONObject("data");
+                if (data != null) {
+                    String changeAmountStr = data.optString("changeAmount", "0");
+                    amount = Integer.parseInt(changeAmountStr);
+                }
+
+                Log.other("训练好友💰️ [获得:" + amount + "金币]");
+
+                // 4. 0 金币限制逻辑
+                if (amount <= 0) {
+                    zeroTrainCoinCount++;
+                    int maxCount = zeroCoinLimit.getValue();
+                    if (zeroTrainCoinCount >= maxCount) {
+                        String today = TimeUtil.getDateStr2();
+                        DataStore.INSTANCE.put(TRAIN_FRIEND_ZERO_COIN_DATE, today);
+                        Log.record(TAG, "✅ 连续获得0金币已达" + maxCount + "次，今日停止执行");
+                        return; // 退出整个方法
+                    } else {
+                        Log.record(TAG, "训练好友0金币计数: " + zeroTrainCoinCount + "/" + maxCount);
+                    }
+                } else {
+                }
+
+                // 5. 频率控制
+                sleepCompat(1000);
             }
+        } catch (Throwable t) {
+            Log.printStackTrace(TAG, "processBubbleList 异常:", t);
         }
     }
 

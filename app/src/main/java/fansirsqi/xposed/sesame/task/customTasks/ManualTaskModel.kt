@@ -1,11 +1,11 @@
-package fansirsqi.xposed.sesame.task.manualtask
+package fansirsqi.xposed.sesame.task.customTasks
 
 import fansirsqi.xposed.sesame.model.ModelFields
 import fansirsqi.xposed.sesame.model.ModelGroup
 import fansirsqi.xposed.sesame.model.modelFieldExt.BooleanModelField
 import fansirsqi.xposed.sesame.task.ModelTask
-import fansirsqi.xposed.sesame.util.Log
 import fansirsqi.xposed.sesame.util.GlobalThreadPools
+import fansirsqi.xposed.sesame.util.Log
 
 /**
  * 手动任务模型
@@ -56,11 +56,11 @@ class ManualTaskModel : ModelTask() {
             return
         }
 
-        val selectedTasks = mutableListOf<FarmSubTask>()
-        if (forestWhackMole.value) selectedTasks.add(FarmSubTask.FOREST_WHACK_MOLE)
-        if (farmSendBackAnimal.value) selectedTasks.add(FarmSubTask.FARM_SEND_BACK_ANIMAL)
-        if (farmGameLogic.value) selectedTasks.add(FarmSubTask.FARM_GAME_LOGIC)
-        if (farmChouChouLe.value) selectedTasks.add(FarmSubTask.FARM_CHOUCHOULE)
+        val selectedTasks = mutableListOf<CustomTask>()
+        if (forestWhackMole.value) selectedTasks.add(CustomTask.FOREST_WHACK_MOLE)
+        if (farmSendBackAnimal.value) selectedTasks.add(CustomTask.FARM_SEND_BACK_ANIMAL)
+        if (farmGameLogic.value) selectedTasks.add(CustomTask.FARM_GAME_LOGIC)
+        if (farmChouChouLe.value) selectedTasks.add(CustomTask.FARM_CHOUCHOULE)
 
         // 使用上游推荐的 GlobalThreadPools 执行手动流
         GlobalThreadPools.execute {

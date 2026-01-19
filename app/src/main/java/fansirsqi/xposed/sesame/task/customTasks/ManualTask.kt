@@ -1,4 +1,4 @@
-package fansirsqi.xposed.sesame.task.manualtask
+package fansirsqi.xposed.sesame.task.customTasks
 
 import fansirsqi.xposed.sesame.hook.ApplicationHook
 import fansirsqi.xposed.sesame.model.Model
@@ -32,7 +32,7 @@ object ManualTask {
      */
     @JvmStatic
     @JvmOverloads
-    fun runSingle(task: FarmSubTask, extraParams: Map<String, Any> = emptyMap()) {
+    fun runSingle(task: CustomTask, extraParams: Map<String, Any> = emptyMap()) {
         GlobalThreadPools.execute {
             run(listOf(task), extraParams)
         }
@@ -41,7 +41,7 @@ object ManualTask {
     /**
      * 顺序执行选中的庄园子任务
      */
-    suspend fun run(tasks: List<FarmSubTask>, extraParams: Map<String, Any> = emptyMap()) {
+    suspend fun run(tasks: List<CustomTask>, extraParams: Map<String, Any> = emptyMap()) {
         if (!isManualEnabled) {
             Log.record("ManualTask", "⚠️ 手动任务流总开关已关闭，无法执行")
             return
@@ -67,7 +67,7 @@ object ManualTask {
                         Log.record("ManualTask", "⏳ 正在执行: ${task.displayName}...")
                         when (task) {
                             // 森林类任务
-                            FarmSubTask.FOREST_WHACK_MOLE -> {
+                            CustomTask.FOREST_WHACK_MOLE -> {
                                 val instance = getForestInstance()
                                 if (instance != null) {
                                     val mode = extraParams["whackMoleMode"] as? Int ?: 1
@@ -79,14 +79,14 @@ object ManualTask {
                             }
 
                             // 庄园类任务
-                            FarmSubTask.FARM_SEND_BACK_ANIMAL -> getFarmInstance()?.manualSendBackAnimal()
-                            FarmSubTask.FARM_GAME_LOGIC -> getFarmInstance()?.manualFarmGameLogic()
-                            FarmSubTask.FARM_CHOUCHOULE -> getFarmInstance()?.manualChouChouLeLogic()
-                            FarmSubTask.FARM_SPECIAL_FOOD -> {
+                            CustomTask.FARM_SEND_BACK_ANIMAL -> getFarmInstance()?.manualSendBackAnimal()
+                            CustomTask.FARM_GAME_LOGIC -> getFarmInstance()?.manualFarmGameLogic()
+                            CustomTask.FARM_CHOUCHOULE -> getFarmInstance()?.manualChouChouLeLogic()
+                            CustomTask.FARM_SPECIAL_FOOD -> {
                                 val count = extraParams["specialFoodCount"] as? Int ?: 0
                                 getFarmInstance()?.manualUseSpecialFood(count)
                             }
-                            FarmSubTask.FARM_USE_TOOL -> {
+                            CustomTask.FARM_USE_TOOL -> {
                                 val toolType = extraParams["toolType"] as? String ?: ""
                                 val toolCount = extraParams["toolCount"] as? Int ?: 1
                                 getFarmInstance()?.manualUseFarmTool(toolType, toolCount)

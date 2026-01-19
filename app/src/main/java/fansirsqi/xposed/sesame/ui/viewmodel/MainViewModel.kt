@@ -2,7 +2,6 @@ package fansirsqi.xposed.sesame.ui.viewmodel
 
 import android.app.Application
 import android.content.Context
-import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import fansirsqi.xposed.sesame.SesameApplication.Companion.PREFERENCES_KEY
@@ -63,13 +62,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // 1. 定义状态
     private val prefs = application.getSharedPreferences(PREFERENCES_KEY, Context.MODE_PRIVATE)
-    private val _isDynamicColor = MutableStateFlow(prefs.getBoolean("dynamic_color", true))
-    val isDynamicColor = _isDynamicColor.asStateFlow()
-    // 2. 切换方法
-    fun toggleDynamicColor(enabled: Boolean) {
-        _isDynamicColor.value = enabled
-        prefs.edit { putBoolean("dynamic_color", enabled) }
-    }
+
 
     private val _serviceStatus = MutableStateFlow<ServiceStatus>(ServiceStatus.Loading)
     val serviceStatus = _serviceStatus.asStateFlow()

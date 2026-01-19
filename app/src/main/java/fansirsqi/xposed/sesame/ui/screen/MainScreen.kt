@@ -35,6 +35,7 @@ import fansirsqi.xposed.sesame.ui.navigation.BottomNavItem
 import fansirsqi.xposed.sesame.ui.screen.components.HomeContent
 import fansirsqi.xposed.sesame.ui.screen.components.LogsContent
 import fansirsqi.xposed.sesame.ui.screen.components.SettingsContent
+import fansirsqi.xposed.sesame.ui.theme.ThemeManager
 import fansirsqi.xposed.sesame.ui.viewmodel.MainViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -151,7 +152,7 @@ fun MainScreen(
                 BottomNavItem.Settings -> SettingsContent(
                     userList = userList,
                     isDynamicColor = isDynamicColor, // 传给 MainScreen
-                    onToggleDynamicColor = viewModel::toggleDynamicColor, // 传入回调
+                    onToggleDynamicColor = ThemeManager::setDynamicColor, // 传入回调
                     onNavigateToSettings = onNavigateToSettings,
                     onEvent = onEvent
                 )

@@ -3,9 +3,12 @@ package fansirsqi.xposed.sesame.ui
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import fansirsqi.xposed.sesame.ui.extension.WatermarkLayer
 import fansirsqi.xposed.sesame.ui.screen.LogViewerScreen
 import fansirsqi.xposed.sesame.ui.theme.AppTheme
+import fansirsqi.xposed.sesame.ui.theme.ThemeManager
 
 /**
  * 承载 Compose 日志查看器的 Activity
@@ -16,7 +19,8 @@ class LogViewerActivity : ComponentActivity() {
         val path = intent.data?.path ?: ""
         setContent {
             // 使用暗色主题，因为 LogViewerScreen 的背景硬编码为了深色 (0xFF1E1E1E)
-            AppTheme {
+            val isDynamicColor by ThemeManager.isDynamicColor.collectAsStateWithLifecycle()
+            AppTheme(dynamicColor = isDynamicColor) {
                 WatermarkLayer {
                     LogViewerScreen(
                         filePath = path,

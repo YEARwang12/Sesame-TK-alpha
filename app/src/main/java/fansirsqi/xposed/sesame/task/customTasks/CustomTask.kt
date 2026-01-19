@@ -1,9 +1,9 @@
-package fansirsqi.xposed.sesame.task.manualtask
+package fansirsqi.xposed.sesame.task.customTasks
 
 /**
  * 庄园子任务枚举
  */
-enum class FarmSubTask(val displayName: String) {
+enum class CustomTask(val displayName: String) {
     FOREST_WHACK_MOLE("森林打地鼠"),
     FARM_SEND_BACK_ANIMAL("遣返小鸡"),
     FARM_GAME_LOGIC("庄园游戏改分"),

@@ -43,9 +43,8 @@ object EnergyRainCoroutine {
             val cooldownSeconds = 3 // 冷却时间：3秒
 
             if (timeSinceLastExec < cooldownSeconds * 1000) {
-                val remainingSeconds = (cooldownSeconds * 1000 - timeSinceLastExec) / 1000
-                Log.record(TAG, "⏱️ 能量雨冷却中，还需等待 $remainingSeconds 秒")
-                return
+                // 粗放点，delay 3秒
+                delay(cooldownSeconds * 1000.toLong())
             }
 
             energyRain()

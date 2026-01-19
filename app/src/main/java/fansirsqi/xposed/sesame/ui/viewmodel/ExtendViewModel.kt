@@ -7,13 +7,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModel
 import com.fasterxml.jackson.core.type.TypeReference
 import fansirsqi.xposed.sesame.BuildConfig
 import fansirsqi.xposed.sesame.R
 import fansirsqi.xposed.sesame.model.CustomSettings
-import fansirsqi.xposed.sesame.ui.ManualTaskFragment
 import fansirsqi.xposed.sesame.util.DataStore
 import fansirsqi.xposed.sesame.util.Detector
 import fansirsqi.xposed.sesame.util.FansirsqiUtil
@@ -84,13 +82,6 @@ class ExtendViewModel : ViewModel() {
         // 3. 每日单次运行 (特殊处理：调用原有逻辑)
         menuItems.add(MenuItem("每日单次运行设置") {
             CustomSettings.showSingleRunMenu(context) { loadData(context) }
-        })
-
-        menuItems.add(MenuItem("手动任务流程") {
-            (context as? FragmentActivity)?.supportFragmentManager?.beginTransaction()
-                ?.replace(android.R.id.content, ManualTaskFragment())
-                ?.addToBackStack(null)
-                ?.commit()
         })
 
         // 4. Debug 功能

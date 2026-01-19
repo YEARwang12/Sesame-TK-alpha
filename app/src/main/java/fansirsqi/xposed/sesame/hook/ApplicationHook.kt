@@ -56,10 +56,9 @@ import fansirsqi.xposed.sesame.task.MainTask
 import fansirsqi.xposed.sesame.task.MainTask.Companion.newInstance
 import fansirsqi.xposed.sesame.task.ModelTask.Companion.stopAllTask
 import fansirsqi.xposed.sesame.task.TaskRunnerAdapter
-import fansirsqi.xposed.sesame.task.manualtask.FarmSubTask
-import fansirsqi.xposed.sesame.task.manualtask.ManualTask
-import fansirsqi.xposed.sesame.task.manualtask.ManualTaskModel
-import fansirsqi.xposed.sesame.util.*
+import fansirsqi.xposed.sesame.task.customTasks.CustomTask
+import fansirsqi.xposed.sesame.task.customTasks.ManualTask
+import fansirsqi.xposed.sesame.task.customTasks.ManualTaskModel
 import fansirsqi.xposed.sesame.util.AssetUtil.checkerDestFile
 import fansirsqi.xposed.sesame.util.AssetUtil.copyStorageSoFileToPrivateDir
 import fansirsqi.xposed.sesame.util.AssetUtil.dexkitDestFile
@@ -403,14 +402,14 @@ class ApplicationHook {
                         if (taskName != null) {
                             val normalizedTaskName = taskName.replace("+", "_")
                             try {
-                                val task = FarmSubTask.valueOf(normalizedTaskName)
+                                val task = CustomTask.valueOf(normalizedTaskName)
                                 val extraParams = HashMap<String, Any>()
-                                if (task == FarmSubTask.FOREST_WHACK_MOLE) {
+                                if (task == CustomTask.FOREST_WHACK_MOLE) {
                                     extraParams["whackMoleMode"] = intent.getIntExtra("whackMoleMode", 1)
                                     extraParams["whackMoleGames"] = intent.getIntExtra("whackMoleGames", 5)
-                                } else if (task == FarmSubTask.FARM_SPECIAL_FOOD) {
+                                } else if (task == CustomTask.FARM_SPECIAL_FOOD) {
                                     extraParams["specialFoodCount"] = intent.getIntExtra("specialFoodCount", 0)
-                                } else if (task == FarmSubTask.FARM_USE_TOOL) {
+                                } else if (task == CustomTask.FARM_USE_TOOL) {
                                     extraParams["toolType"] = intent.getStringExtra("toolType") ?: ""
                                     extraParams["toolCount"] = intent.getIntExtra("toolCount", 1)
                                 }

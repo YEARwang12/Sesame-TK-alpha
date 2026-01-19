@@ -20,6 +20,7 @@ import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.SatelliteAlt
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import fansirsqi.xposed.sesame.BuildConfig
 import fansirsqi.xposed.sesame.entity.UserEntity
 import fansirsqi.xposed.sesame.ui.MainActivity
+import fansirsqi.xposed.sesame.ui.ManualTaskActivity
 import fansirsqi.xposed.sesame.ui.RpcDebugActivity
 import fansirsqi.xposed.sesame.ui.compose.CommonAlertDialog
 import fansirsqi.xposed.sesame.ui.extension.joinQQGroup
@@ -111,6 +113,16 @@ fun SettingsContent(
                         onClick = {
                             // 直接跳转 Activity
                             context.startActivity(Intent(context, RpcDebugActivity::class.java))
+                        }
+                    )
+                }
+
+                item {
+                    SettingsItem(
+                        title = "手动调度任务",
+                        icon = Icons.Rounded.SatelliteAlt,
+                        onClick = {
+                            context.startActivity(Intent(context, ManualTaskActivity::class.java))
                         }
                     )
                 }

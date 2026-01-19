@@ -24,7 +24,7 @@ import fansirsqi.xposed.sesame.model.modelFieldExt.ListModelField.ListJoinCommaT
 import fansirsqi.xposed.sesame.util.TaskBlacklist
 import fansirsqi.xposed.sesame.task.ModelTask
 import fansirsqi.xposed.sesame.task.TaskCommon
-import fansirsqi.xposed.sesame.task.antFarm.TaskStatus
+import fansirsqi.xposed.sesame.task.TaskStatus
 import fansirsqi.xposed.sesame.task.antForest.ForestUtil.hasBombCard
 import fansirsqi.xposed.sesame.task.antForest.ForestUtil.hasShield
 import fansirsqi.xposed.sesame.task.antForest.Privilege.studentSignInRedEnvelope
@@ -861,11 +861,11 @@ class AntForest : ModelTask(), EnergyCollectCallback {
                 if (energyRain!!.value) {
                     // 检查是否到达执行时间
                     if (TaskTimeChecker.isTimeReached(energyRainTime?.value, "0810")) {
-                        EnergyRainCoroutine.execEnergyRainCompat()
                         if (energyRainChance!!.value) {
                             useEnergyRainChanceCard()
                             tc.countDebug("使用能量雨卡")
                         }
+                        EnergyRainCoroutine.execEnergyRainCompat()
                         tc.countDebug("能量雨")
                     } else {
                         Log.record(TAG, "能量雨未到执行时间，跳过")
@@ -4320,7 +4320,7 @@ class AntForest : ModelTask(), EnergyCollectCallback {
         }
     }
 
-    private fun useEnergyRainChanceCard() {
+    private suspend fun useEnergyRainChanceCard() {
         try {
             if (Status.hasFlagToday("AntForest::useEnergyRainChanceCard")) {
                 return
@@ -4328,6 +4328,7 @@ class AntForest : ModelTask(), EnergyCollectCallback {
             // 背包查找 限时能量雨机会
             var jo = findPropBag(queryPropList(), "LIMIT_TIME_ENERGY_RAIN_CHANCE")
             // 活力值商店兑换
+            delay(3000)
             if (jo == null) {
                 val skuInfo = Vitality.findSkuInfoBySkuName("能量雨次卡") ?: return
                 val skuId = skuInfo.getString("skuId")
@@ -4340,14 +4341,13 @@ class AntForest : ModelTask(), EnergyCollectCallback {
                         "限时能量雨机会"
                     )
                 ) {
-                    jo = findPropBag(queryPropList(), "LIMIT_TIME_ENERGY_RAIN_CHANCE")
+                    jo = findPropBag(queryPropList(true), "LIMIT_TIME_ENERGY_RAIN_CHANCE")
                 }
             }
             // 使用 道具
             if (jo != null && usePropBag(jo)) {
                 Status.setFlagToday("AntForest::useEnergyRainChanceCard")
-                GlobalThreadPools.sleepCompat(500)
-                EnergyRainCoroutine.execEnergyRainCompat()
+                delay(1000)
             }
         } catch (th: Throwable) {
             Log.printStackTrace(TAG, "useEnergyRainChanceCard err",th)

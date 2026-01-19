@@ -23,20 +23,21 @@ import fansirsqi.xposed.sesame.model.modelFieldExt.ListModelField.ListJoinCommaT
 import fansirsqi.xposed.sesame.model.modelFieldExt.SelectAndCountModelField
 import fansirsqi.xposed.sesame.model.modelFieldExt.SelectModelField
 import fansirsqi.xposed.sesame.model.modelFieldExt.StringModelField
-import fansirsqi.xposed.sesame.util.DataStore
-import fansirsqi.xposed.sesame.util.TaskBlacklist
 import fansirsqi.xposed.sesame.task.AnswerAI.AnswerAI
 import fansirsqi.xposed.sesame.task.ModelTask
+import fansirsqi.xposed.sesame.task.TaskStatus
 import fansirsqi.xposed.sesame.task.antFarm.AntFarmFamily.familyClaimRewardList
 import fansirsqi.xposed.sesame.task.antFarm.AntFarmFamily.familySign
 import fansirsqi.xposed.sesame.task.antForest.TaskTimeChecker
 import fansirsqi.xposed.sesame.util.CoroutineUtils
+import fansirsqi.xposed.sesame.util.DataStore
 import fansirsqi.xposed.sesame.util.JsonUtil
 import fansirsqi.xposed.sesame.util.ListUtil
 import fansirsqi.xposed.sesame.util.Log
 import fansirsqi.xposed.sesame.util.RandomUtil
 import fansirsqi.xposed.sesame.util.ResChecker
 import fansirsqi.xposed.sesame.util.StringUtil
+import fansirsqi.xposed.sesame.util.TaskBlacklist
 import fansirsqi.xposed.sesame.util.TimeCounter
 import fansirsqi.xposed.sesame.util.TimeUtil
 import fansirsqi.xposed.sesame.util.maps.IdMapManager
@@ -1857,7 +1858,7 @@ class AntFarm : ModelTask() {
                         Log.farm("庄园游戏🎮[${gameType.gameName()}]#$awardStr")
 
                         if (joRecord.optInt("remainingGameCount", 0) > 0) {
-                            delay(2000)
+                            delay(3000)
                             continue
                         }
                     } else {
@@ -1867,7 +1868,7 @@ class AntFarm : ModelTask() {
 
                 // 次数用完后，尝试获取额外任务机会
                 if (handleGameTasks(gameType)) {
-                    delay(2000)
+                    delay(3000)
                     continue // 任务处理成功（如领完奖励或做完任务），重新进入初始化检查次数
                 }
 
@@ -4635,7 +4636,6 @@ class AntFarm : ModelTask() {
         @JvmStatic
         fun loadAntFarmReferToken(): String? {
             if (!antFarmReferToken.isNullOrEmpty()) return antFarmReferToken
-
             val uid = UserMap.currentUid
             val vipData = IdMapManager.getInstance(VipDataIdMap::class.java)
             vipData.load(uid)

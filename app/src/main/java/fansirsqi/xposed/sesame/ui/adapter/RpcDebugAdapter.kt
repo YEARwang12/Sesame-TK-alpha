@@ -7,17 +7,17 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
 import fansirsqi.xposed.sesame.R
-import fansirsqi.xposed.sesame.entity.RpcDebugItem
+import fansirsqi.xposed.sesame.entity.RpcDebugEntity
 
 /**
  * RPC 调试项列表适配器
  */
 class RpcDebugAdapter(
-    private val items: MutableList<RpcDebugItem>,
-    private val onRun: (RpcDebugItem) -> Unit,
-    private val onEdit: (RpcDebugItem) -> Unit,
-    private val onDelete: (RpcDebugItem) -> Unit,
-    private val onCopy: (RpcDebugItem) -> Unit
+    private val items: MutableList<RpcDebugEntity>,
+    private val onRun: (RpcDebugEntity) -> Unit,
+    private val onEdit: (RpcDebugEntity) -> Unit,
+    private val onDelete: (RpcDebugEntity) -> Unit,
+    private val onCopy: (RpcDebugEntity) -> Unit
 ) : RecyclerView.Adapter<RpcDebugAdapter.ViewHolder>() {
 
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {

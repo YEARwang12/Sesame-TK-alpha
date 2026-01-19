@@ -11,9 +11,9 @@ import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.fasterxml.jackson.core.type.TypeReference
-import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.json.JsonMapper
 import fansirsqi.xposed.sesame.SesameApplication.Companion.PREFERENCES_KEY
-import fansirsqi.xposed.sesame.entity.RpcDebugItem
+import fansirsqi.xposed.sesame.entity.RpcDebugEntity
 import fansirsqi.xposed.sesame.ui.LogViewerActivity
 import fansirsqi.xposed.sesame.util.Files
 import fansirsqi.xposed.sesame.util.Log
@@ -27,18 +27,32 @@ import kotlinx.coroutines.launch
 // 弹窗状态
 sealed class RpcDialogState {
     data object None : RpcDialogState()
-    data class Edit(val item: RpcDebugItem?, val initialJson: String) : RpcDialogState() // item为null表示新增
-    data class DeleteConfirm(val item: RpcDebugItem) : RpcDialogState()
-    data class RestoreConfirm(val items: List<RpcDebugItem>) : RpcDialogState()
+    data class Edit(
+        val item: RpcDebugEntity?,
+        val initialJson: String,
+        val initialDesc: String,
+        val initialName: String
+    ) : RpcDialogState()
+
+    data class DeleteConfirm(val item: RpcDebugEntity) : RpcDialogState()
+    data class RestoreConfirm(val items: List<RpcDebugEntity>) : RpcDialogState()
+
+
 }
 
 class RpcDebugViewModel(application: Application) : AndroidViewModel(application) {
 
+
+    data class RpcDebugItemRaw(val name: String, val method: String, val requestData: Any?, val description: String)
+
+
     private val prefs = application.getSharedPreferences(PREFERENCES_KEY, Context.MODE_PRIVATE)
-    private val objectMapper = ObjectMapper()
+    private val objectMapper = JsonMapper.builder()
+        .enable(com.fasterxml.jackson.databind.MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES)
+        .build()
 
     // UI State
-    private val _items = MutableStateFlow<List<RpcDebugItem>>(emptyList())
+    private val _items = MutableStateFlow<List<RpcDebugEntity>>(emptyList())
     val items = _items.asStateFlow()
 
     private val _dialogState = MutableStateFlow<RpcDialogState>(RpcDialogState.None)
@@ -57,7 +71,7 @@ class RpcDebugViewModel(application: Application) : AndroidViewModel(application
         try {
             val jsonString = prefs.getString("rpc_debug_items", null)
             if (jsonString != null) {
-                val list = objectMapper.readValue(jsonString, object : TypeReference<List<RpcDebugItem>>() {})
+                val list = objectMapper.readValue(jsonString, object : TypeReference<List<RpcDebugEntity>>() {})
                 _items.value = list
             }
         } catch (e: Exception) {
@@ -78,25 +92,51 @@ class RpcDebugViewModel(application: Application) : AndroidViewModel(application
 
     // --- 业务操作 ---
 
+    /**
+     * 显示添加 RPC 调试项弹窗
+     */
     fun showAddDialog(context: Context) {
-        // 自动读取剪贴板
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val clipText = clipboard.primaryClip?.getItemAt(0)?.text?.toString() ?: ""
-        val initialJson = prepareJsonInput(clipText)
-        _dialogState.value = RpcDialogState.Edit(null, initialJson)
+        // 1. 修复 RpcDebugItemRaw 报错：传入默认空值
+        val (name, method, requestData, description) = try {
+            parseJsonFields(clipText)
+        } catch (e: Exception) {
+            // ✅ 修复点：传入空参数
+            RpcDebugItemRaw("", "", null, "")
+        }
+        // 2. 准备 JSON 字符串 (用于填充输入框)
+        val initialJson = if (method.isNotEmpty()) {
+            try {
+                val map = mapOf("methodName" to method, "requestData" to requestData)
+                objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(map)
+            } catch (e: Exception) {
+                ""
+            }
+        } else {
+            ""
+        }
+        // 注意：Name 目前无法通过这种方式预填充（因为 item 为 null），如果需要预填充 Name，
+        // 这里建议由用户手动输入 Name，或者只预填充 JSON 和 描述。
+        _dialogState.value = RpcDialogState.Edit(null, initialJson, description, name)
     }
 
-    fun showEditDialog(item: RpcDebugItem) {
+    /**
+     * 显示编辑 RPC 调试项弹窗
+     */
+    fun showEditDialog(item: RpcDebugEntity) {
         val json = try {
-            val map = mapOf("Name" to item.name, "methodName" to item.method, "requestData" to item.requestData)
+            // 编辑时不把 description 放进 JSON 编辑框，而是单独显示
+            val map = mapOf("methodName" to item.method, "requestData" to item.requestData)
             objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(map)
         } catch (_: Exception) {
             "{}"
         }
-        _dialogState.value = RpcDialogState.Edit(item, json)
+
+        _dialogState.value = RpcDialogState.Edit(item, json, item.description, item.name)
     }
 
-    fun showDeleteDialog(item: RpcDebugItem) {
+    fun showDeleteDialog(item: RpcDebugEntity) {
         _dialogState.value = RpcDialogState.DeleteConfirm(item)
     }
 
@@ -104,46 +144,53 @@ class RpcDebugViewModel(application: Application) : AndroidViewModel(application
         _dialogState.value = RpcDialogState.None
     }
 
-    fun saveItem(name: String, jsonText: String, editingItem: RpcDebugItem?) {
+    // 保存逻辑
+    fun saveItem(name: String, description: String, jsonText: String, editingItem: RpcDebugEntity?) {
         try {
-            val (parsedName, method, requestData) = parseJsonFields(jsonText)
-            val finalName = name.ifEmpty { parsedName }
+            // 解析 JSON 编辑框的内容 (这里面只包含 method 和 data)
+            val (_, method, requestData, _) = parseJsonFields(jsonText)
+
+            // name 和 description 从独立输入框取
+            val finalName = name.ifEmpty { method } // 如果没填名字，用 method 代替
 
             if (method.isEmpty()) {
-                ToastUtil.makeText("methodName 不能为空", Toast.LENGTH_SHORT).show()
+                ToastUtil.makeText("methodName 不能为空", 0).show()
                 return
             }
 
             val currentList = _items.value.toMutableList()
 
             if (editingItem != null) {
-                // 编辑：找到原对象位置并替换 (因为 RpcDebugItem 可能是可变的，但在 Compose 中最好由不可变列表驱动)
-                // 这里假设 RpcDebugItem 是可变的，为了 Compose 更新，我们需要复制列表
+                // 编辑模式
                 val index = currentList.indexOf(editingItem)
                 if (index != -1) {
-                    // 更新对象属性
                     editingItem.name = finalName
+                    editingItem.description = description // 更新描述
                     editingItem.method = method
                     editingItem.requestData = requestData
-                    // 触发 Flow 更新
                     _items.value = ArrayList(currentList)
                 }
             } else {
-                // 新增
-                val newItem = RpcDebugItem(name = finalName, method = method, requestData = requestData)
+                // 新增模式
+                val newItem = RpcDebugEntity(
+                    id = System.currentTimeMillis().toString(),
+                    name = finalName,
+                    description = description,
+                    method = method,
+                    requestData = requestData
+                )
                 currentList.add(newItem)
                 _items.value = currentList
             }
-
             saveItems()
             dismissDialog()
-            ToastUtil.makeText("保存成功", Toast.LENGTH_SHORT).show()
+            ToastUtil.makeText("保存成功", 0).show()
         } catch (e: Exception) {
-            ToastUtil.makeText("JSON 错误: ${e.message}", Toast.LENGTH_LONG).show()
+            ToastUtil.makeText("JSON 格式错误: ${e.message}", 1).show()
         }
     }
 
-    fun deleteItem(item: RpcDebugItem) {
+    fun deleteItem(item: RpcDebugEntity) {
         val list = _items.value.toMutableList()
         list.remove(item)
         _items.value = list
@@ -151,7 +198,7 @@ class RpcDebugViewModel(application: Application) : AndroidViewModel(application
         dismissDialog()
     }
 
-    fun runRpcItem(item: RpcDebugItem, activityContext: Context) {
+    fun runRpcItem(item: RpcDebugEntity, activityContext: Context) {
         viewModelScope.launch {
             try {
                 val logFile = Files.getDebugLogFile()
@@ -211,14 +258,14 @@ class RpcDebugViewModel(application: Application) : AndroidViewModel(application
             return
         }
         try {
-            val list = objectMapper.readValue(text, object : TypeReference<List<RpcDebugItem>>() {})
+            val list = objectMapper.readValue(text, object : TypeReference<List<RpcDebugEntity>>() {})
             _dialogState.value = RpcDialogState.RestoreConfirm(list)
         } catch (_: Exception) {
             ToastUtil.makeText(context, "解析失败", Toast.LENGTH_SHORT).show()
         }
     }
 
-    fun confirmRestore(newItems: List<RpcDebugItem>) {
+    fun confirmRestore(newItems: List<RpcDebugEntity>) {
         // 补全 ID
         newItems.forEach { if (it.id.isEmpty()) it.id = System.currentTimeMillis().toString() }
         _items.value = newItems
@@ -229,15 +276,11 @@ class RpcDebugViewModel(application: Application) : AndroidViewModel(application
 
     fun loadDefaultItems() {
         val defaultList = listOf(
-            RpcDebugItem(
+            RpcDebugEntity(
                 name = "雇佣黄金鸡",
                 method = "com.alipay.antfarm.hireAnimal",
-                requestData = listOf(mapOf("hireActionType" to "HIRE_IN_SELF_FARM", "sceneCode" to "ANTFARM")) // 简化示例
-            ),
-            RpcDebugItem(
-                name = "雇佣黄金鸡",
-                method = "com.alipay.antfarm.hireAnimal",
-                requestData = listOf(mapOf("hireActionType" to "HIRE_IN_SELF_FARM", "sceneCode" to "ANTFARM")) // 简化示例
+                requestData = listOf(mapOf("hireActionType" to "HIRE_IN_SELF_FARM", "sceneCode" to "ANTFARM")), // 简化示例
+                description = "这是一个雇佣黄金鸡的操作,可以让你雇佣一个黄金的鸡"
             )
         )
         // 简单合并逻辑：略
@@ -245,12 +288,17 @@ class RpcDebugViewModel(application: Application) : AndroidViewModel(application
         saveItems()
     }
 
-    fun shareItem(item: RpcDebugItem, context: Context) {
+    fun shareItem(item: RpcDebugEntity, context: Context) {
         try {
-            val map = mapOf("Name" to item.name, "methodName" to item.method, "requestData" to item.requestData)
+            val map = mapOf(
+                "Name" to item.name,
+                "Description" to item.description, // 分享出去
+                "methodName" to item.method,
+                "requestData" to item.requestData
+            )
             val json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(map)
             copyToClipboard("RPC Item", json, context)
-            ToastUtil.makeText("已复制", Toast.LENGTH_SHORT).show()
+            ToastUtil.makeText("已复制完整配置", 0).show()
         } catch (_: Exception) {
         }
     }
@@ -261,18 +309,31 @@ class RpcDebugViewModel(application: Application) : AndroidViewModel(application
         clipboard.setPrimaryClip(clip)
     }
 
-    // 复用原有的 JSON 解析逻辑 (略微精简)
-    private fun prepareJsonInput(text: String): String {
-        return if (text.contains("{")) text else """{ "methodName": "", "requestData": [{}] }"""
+    fun parseJsonFields(json: String): RpcDebugItemRaw {
+        Log.d("RpcDebug", "尝试解析 JSON: $json")
+        val map = try {
+            // 2. 使用 TypeReference 明确泛型，避免类型擦除问题
+            objectMapper.readValue(json, object : TypeReference<Map<String, Any>>() {})
+        } catch (e: Exception) {
+            Log.e("RpcDebug", "JSON 解析失败", e)
+            emptyMap()
+        }
+
+        return RpcDebugItemRaw(
+            // 3. 增加 trim() 去除可能存在的首尾空格
+            name = (map["name"] ?: map["Name"])?.toString()?.trim() ?: "",
+            method = (map["method"] ?: map["methodName"] ?: map["Method"])?.toString()?.trim() ?: "",
+            requestData = map["requestData"] ?: map["RequestData"],
+            description = (map["description"] ?: map["Description"] ?: map["desc"] ?: map["Desc"])?.toString()?.trim() ?: ""
+        )
     }
 
-    private fun parseJsonFields(json: String): Triple<String, String, Any?> {
-        val map = objectMapper.readValue(json, Map::class.java)
-        return Triple(
-            (map["Name"] ?: map["name"])?.toString() ?: "",
-            (map["methodName"] ?: map["method"])?.toString() ?: "",
-            map["requestData"] ?: map["RequestData"],
-        )
+    fun formatJsonFromRaw(data: Any): String {
+        return try {
+            objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(data)
+        } catch (e: Exception) {
+            "{}"
+        }
     }
 
     /**

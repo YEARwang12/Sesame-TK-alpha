@@ -1,4 +1,4 @@
-package fansirsqi.xposed.sesame.task.antFarm;
+package fansirsqi.xposed.sesame.task;
 
 public enum TaskStatus {
     TODO, //待办任务或未完成
