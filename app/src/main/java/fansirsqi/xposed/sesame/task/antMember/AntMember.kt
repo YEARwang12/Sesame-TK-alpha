@@ -80,8 +80,8 @@ class AntMember : ModelTask() {
     // 芝麻树
     private var enableZhimaTree: BooleanModelField? = null
 
-    //年度回顾
-    private var annualReview: BooleanModelField? = null
+    /*//年度回顾
+    private var annualReview: BooleanModelField? = null*/
 
     // 黄金票配置 - 签到
     private var enableGoldTicket: BooleanModelField? = null
@@ -244,7 +244,7 @@ class AntMember : ModelTask() {
                     if ((sesameTask!!.value || collectSesame!!.value)) {
                         // 芝麻粒福利签到
                         doSesameZmlCheckIn()
-                        if (hasFlagToday(StatusFlags.FLAG_AntMember_doAllAvailableSesameTask)) {
+                        if (hasFlagToday(StatusFlags.FLAG_ANTMEMBER_DO_ALL_SESAME_TASK)) {
                             record(TAG, "⏭️ 今天已完成过芝麻信用任务，跳过执行")
                         } else {
                             // 芝麻信用任务（今日首次）
@@ -304,9 +304,9 @@ class AntMember : ModelTask() {
                     deferredTasks.add(async(Dispatchers.IO) { beanSignIn() })
                 }
 
-                if (annualReview!!.value) {
+               /* if (annualReview!!.value) {   //年度回顾已下线
                     deferredTasks.add(async(Dispatchers.IO) { doAnnualReview() })
-                }
+                }*/
 
                 if (beanExchangeBubbleBoost!!.value) {
                     deferredTasks.add(async(Dispatchers.IO) { beanExchangeBubbleBoost() })
@@ -1144,7 +1144,7 @@ class AntMember : ModelTask() {
 
             // 如果所有任务都已完成或跳过（没有剩余可完成任务），关闭开关
             if (totalTasks > 0 && (completedTasks + skippedTasks) >= totalTasks) {
-                setFlagToday(StatusFlags.FLAG_AntMember_doAllAvailableSesameTask)
+                setFlagToday(StatusFlags.FLAG_ANTMEMBER_DO_ALL_SESAME_TASK)
                 record(TAG, "芝麻信用💳[已全部完成任务，临时关闭]")
             }
         } catch (t: Throwable) {
@@ -2487,7 +2487,7 @@ class AntMember : ModelTask() {
     @SuppressLint("DefaultLocale")
     fun queryAndCollectStickers() {
         try {
-            if (hasFlagToday(StatusFlags.FLAG_AntMember_STICKER)) {
+            if (hasFlagToday(StatusFlags.FLAG_ANTMEMBER_STICKER)) {
                 record(TAG, "今日已兑换贴纸，跳过")
                 return
             }
@@ -2561,7 +2561,7 @@ class AntMember : ModelTask() {
             }
 
             // 标记今日完成
-            setFlagToday(StatusFlags.FLAG_AntMember_STICKER)
+            setFlagToday(StatusFlags.FLAG_ANTMEMBER_STICKER)
 
         } catch (e: Exception) {
             Log.printStackTrace("$TAG stickerAutoCollect err", e)

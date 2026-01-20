@@ -112,7 +112,9 @@ class ChouChouLe {
                             doubleCheck = true
                         }
                     } else if (TaskStatus.TODO.name == task.taskStatus) {
-                        if (task.getRemainingTimes() > 0 && "DONATION" != task.innerAction) {
+                        // 只要有剩余次数，且（不是捐赠任务 OR 开启了捐赠任务开关），就执行
+                        if (task.getRemainingTimes() > 0 &&
+                            (task.innerAction != "DONATION" || AntFarm.instance?.doChouChouLeDonationTask?.value == true)) {
                             if (doChouTask(drawType, task)) {
                                 doubleCheck = true
                             }
@@ -153,8 +155,9 @@ class ChouChouLe {
                 if (TaskStatus.FINISHED.name == task.taskStatus) {
                     return false
                 } else if (TaskStatus.TODO.name == task.taskStatus) {
-                    // 还有剩余次数且不是捐赠任务
-                    if (task.getRemainingTimes() > 0 && "DONATION" != task.innerAction) {
+                    // 还有剩余次数且满足执行条件
+                    if (task.getRemainingTimes() > 0 &&
+                        (task.innerAction != "DONATION" || AntFarm.instance?.doChouChouLeDonationTask?.value == true)) {
                         return false
                     }
                 }
@@ -413,7 +416,7 @@ class ChouChouLe {
                     GlobalThreadPools.sleepCompat(1500L)
                 }
             }
-            if (activityId.isNotEmpty()) {
+            if (activityId.isNotEmpty() && AntFarm.instance?.autoExchange?.value == true) {
                 batchExchangeRewards(activityId)
             }
             return allSuccess
@@ -504,14 +507,14 @@ class ChouChouLe {
     }
 
     /**
-     * 批量兑换奖励（严格优先级策略）
+     * 批量兑换奖励（严格优先级策略：攒钱买最好的）
      */
     fun batchExchangeRewards(activityId: String) {
         try {
             val response = AntFarmRpcCall.getItemList(activityId, 10, 0)
             val respJson = JSONObject(response)
 
-            if (respJson.optBoolean("success", false)) {
+            if (respJson.optBoolean("success", false) || respJson.optString("code") == "100000000") {
                 var totalCent = 0
                 val mallAccount = respJson.optJSONObject("mallAccountInfoVO")
                 if (mallAccount != null) {
@@ -526,80 +529,79 @@ class ChouChouLe {
                 val allSkus = ArrayList<JSONObject>()
                 for (i in 0 until itemVOList.length()) {
                     val item = itemVOList.optJSONObject(i) ?: continue
+                    val itemReachedLimit = isReachedLimit(item)
+                    val minPriceObj = item.optJSONObject("minPrice")
+                    val cent = minPriceObj?.optInt("cent", 0) ?: 0
+
                     val skuList = item.optJSONArray("skuModelList") ?: continue
                     for (j in 0 until skuList.length()) {
                         val sku = skuList.optJSONObject(j) ?: continue
                         sku.put("_spuId", item.optString("spuId"))
                         sku.put("_spuName", item.optString("spuName"))
+                        sku.put("_isReachLimit", itemReachedLimit || isReachedLimit(sku))
+                        sku.put("_cent", cent)
                         allSkus.add(sku)
                     }
                 }
+                allSkus.sortWith { a, b -> b.optInt("_cent", 0).compareTo(a.optInt("_cent", 0)) }
 
-                // 排序逻辑：积分价格降序，但 300 分的排最后
-                allSkus.sortWith { a, b ->
-                    val priceA = a.optJSONObject("price")?.optInt("cent", 0) ?: 0
-                    val priceB = b.optJSONObject("price")?.optInt("cent", 0) ?: 0
-                    if (priceA == 300 && priceB != 300) return@sortWith 1
-                    if (priceA != 300 && priceB == 300) return@sortWith -1
-                    priceB.compareTo(priceA)
-                }
-
-                // 列出符合条件的非扫尾项目 (>300分 且 有次数)
                 for (sku in allSkus) {
-                    val cent = sku.optJSONObject("price")?.optInt("cent", 0) ?: 0
-                    if (cent <= 300) continue
-
-                    val exchangedCount = sku.optInt("exchangedCount", 0)
-                    val extendInfo = sku.optString("skuExtendInfo")
-                    val limit = if (extendInfo.contains("20次")) 20 else if (extendInfo.contains("5次")) 5 else 1
-
-                    if (exchangedCount < limit) {
-                        Log.record(
-                            "自动兑换", " (" + sku.optString("skuName") + ") - 碎片: " + totalCent / 100 + "/" + cent / 100 +
-                                    " (进度: " + exchangedCount + "/" + limit + ")"
-                        )
-                    }
-                }
-
-                // 执行顺序兑换
-                for (sku in allSkus) {
-                    var exchangedCount = sku.optInt("exchangedCount", 0)
-                    val extendInfo = sku.optString("skuExtendInfo")
-                    val limitCount =
-                        if (extendInfo.contains("20次")) 20 else if (extendInfo.contains("5次")) 5 else 1
+                    if (sku.optBoolean("_isReachLimit")) continue
+                    val cent = sku.optInt("_cent", 0)
                     val skuName = sku.optString("skuName")
 
-                    if (exchangedCount < limitCount) {
-                        // 如果当前最高价值项初始状态就显示积分不足，直接终止所有兑换逻辑
-                        if ("NO_ENOUGH_POINT" == sku.optString("skuRuleResult")) {
-                            Log.record("自动兑换", "积分不足以兑换当前最高优先级项 [$skuName]，停止后续尝试")
-                            return
-                        }
+                    if (isNoEnoughPoint(sku) || (cent > 0 && totalCent < cent)) {
+                        Log.record("自动兑换", "最高价值项 [$skuName] 碎片不足(持有 ${totalCent/100}, 需 ${cent/100})，等攒够再换，终止本次兑换")
+                        return
+                    }
+                    break
+                }
 
-                        // 循环兑换直到该物品满额或积分不足
-                        while (exchangedCount < limitCount) {
-                            val result = AntFarmRpcCall.exchangeBenefit(
-                                sku.optString("_spuId"), sku.optString("skuId"),
-                                activityId, "ANTFARM_IP_DRAW_MALL", "antfarm_villa"
+                // 执行顺序兑换，按价格从高到低
+                for (sku in allSkus) {
+                    if (sku.optBoolean("_isReachLimit")) continue
+
+                    val skuName = sku.optString("skuName")
+                    val cent = sku.optInt("_cent", 0)
+                    val extendInfo = sku.optString("skuExtendInfo")
+                    val limitCount = if (extendInfo.contains("20次")) 20 else if (extendInfo.contains("5次")) 5 else 1
+
+                    // 【核心逻辑】：如果当前项买不起，直接 return 停止，不再尝试后续更便宜的项目
+                    if (isNoEnoughPoint(sku) || (cent > 0 && totalCent < cent)) {
+                        Log.record("自动兑换", "剩余碎片不足以兑换优先级项 [$skuName] (需 ${cent/100})，停止后续兑换任务")
+                        return
+                    }
+
+                    var sessionExchangedCount = 0
+                    while (sessionExchangedCount < limitCount) {
+                        // 预检查当前余额
+                        if (cent > 0 && totalCent < cent) break
+
+                        val result = AntFarmRpcCall.exchangeBenefit(
+                            sku.optString("_spuId"), sku.optString("skuId"),
+                            activityId, "ANTFARM_IP_DRAW_MALL", "antfarm_villa"
+                        )
+
+                        val resObj = JSONObject(result)
+                        val resultCode = resObj.optString("resultCode")
+
+                        if ("SUCCESS" == resultCode) {
+                            sessionExchangedCount++
+                            totalCent -= cent // 减去花费
+                            Log.record(
+                                "自动兑换",
+                                "成功兑换: $skuName (本次第 $sessionExchangedCount 次，剩余碎片: ${totalCent/100})"
                             )
-
-                            val resObj = JSONObject(result)
-                            val resultCode = resObj.optString("resultCode")
-
-                            if ("SUCCESS" == resultCode) {
-                                exchangedCount++
-                                Log.record(
-                                    "自动兑换",
-                                    "成功兑换: $skuName ($exchangedCount/$limitCount)"
-                                )
-                                GlobalThreadPools.sleepCompat(600L)
-                            } else if ("NO_ENOUGH_POINT" == resultCode) {
-                                Log.record("自动兑换", "兑换过程中积分不足，停止后续所有任务")
-                                return
-                            } else {
-                                Log.record("自动兑换", "跳过 [$skuName]: " + resObj.optString("resultDesc"))
-                                break
-                            }
+                            GlobalThreadPools.sleepCompat(800L)
+                        } else if ("NO_ENOUGH_POINT" == resultCode) {
+                            Log.record("自动兑换", "兑换过程中积分不足，停止后续所有任务")
+                            return
+                        } else if (resultCode.contains("LIMIT") || resultCode.contains("MAX")) {
+                            Log.record("自动兑换", "[$skuName] 已达兑换上限: " + resObj.optString("resultDesc"))
+                            break
+                        } else {
+                            Log.record("自动兑换", "跳过 [$skuName]: " + resObj.optString("resultDesc"))
+                            break
                         }
                     }
                 }
@@ -607,5 +609,30 @@ class ChouChouLe {
         } catch (e: Exception) {
             Log.printStackTrace(TAG,"自动兑换异常", e)
         }
+    }
+
+    private fun isReachedLimit(jo: JSONObject?): Boolean {
+        if (jo == null) return false
+        if ("REACH_LIMIT" == jo.optString("itemStatus")) return true
+        val list = jo.optJSONArray("itemStatusList")
+        if (list != null) {
+            for (i in 0 until list.length()) {
+                val status = list.optString(i)
+                if ("REACH_LIMIT" == status || status.contains("LIMIT")) return true
+            }
+        }
+        return false
+    }
+
+    private fun isNoEnoughPoint(jo: JSONObject?): Boolean {
+        if (jo == null) return false
+        if ("NO_ENOUGH_POINT" == jo.optString("itemStatus")) return true
+        val list = jo.optJSONArray("itemStatusList")
+        if (list != null) {
+            for (i in 0 until list.length()) {
+                if ("NO_ENOUGH_POINT" == list.optString(i)) return true
+            }
+        }
+        return false
     }
 }

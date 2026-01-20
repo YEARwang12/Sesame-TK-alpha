@@ -13,16 +13,20 @@ import fansirsqi.xposed.sesame.util.Log
  */
 class ManualTaskModel : ModelTask() {
     private lateinit var forestWhackMole: BooleanModelField
+    private lateinit var forestEnergyRain: BooleanModelField
+    private lateinit var exchangeEnergyRainCard: BooleanModelField
     private lateinit var farmSendBackAnimal: BooleanModelField
     private lateinit var farmGameLogic: BooleanModelField
     private lateinit var farmChouChouLe: BooleanModelField
 
 
-    override fun getName(): String = "手动任务流程"
+    override fun getName(): String = "手动调度任务"
 
     override fun getFields(): ModelFields {
         val fields = ModelFields()
         fields.addField(BooleanModelField("forestWhackMole", "森林打地鼠", false).also { forestWhackMole = it })
+        fields.addField(BooleanModelField("forestEnergyRain", "能量雨", false).also { forestEnergyRain = it })
+        fields.addField(BooleanModelField("exchangeEnergyRainCard", " ↪ 兑换使用能量雨卡", false).also { exchangeEnergyRainCard = it })
         fields.addField(BooleanModelField("farmSendBackAnimal", "遣返小鸡", false).also { farmSendBackAnimal = it })
         fields.addField(BooleanModelField("farmGameLogic", "庄园游戏改分", false).also { farmGameLogic = it })
         fields.addField(BooleanModelField("farmChouChouLe", "庄园抽抽乐", false).also { farmChouChouLe = it })
@@ -58,13 +62,17 @@ class ManualTaskModel : ModelTask() {
 
         val selectedTasks = mutableListOf<CustomTask>()
         if (forestWhackMole.value) selectedTasks.add(CustomTask.FOREST_WHACK_MOLE)
+        if (forestEnergyRain.value) selectedTasks.add(CustomTask.FOREST_ENERGY_RAIN)
         if (farmSendBackAnimal.value) selectedTasks.add(CustomTask.FARM_SEND_BACK_ANIMAL)
         if (farmGameLogic.value) selectedTasks.add(CustomTask.FARM_GAME_LOGIC)
         if (farmChouChouLe.value) selectedTasks.add(CustomTask.FARM_CHOUCHOULE)
 
+        val extraParams = HashMap<String, Any>()
+        extraParams["exchangeEnergyRainCard"] = exchangeEnergyRainCard.value
+
         // 使用上游推荐的 GlobalThreadPools 执行手动流
         GlobalThreadPools.execute {
-            ManualTask.run(selectedTasks)
+            ManualTask.run(selectedTasks, extraParams)
         }
     }
 }

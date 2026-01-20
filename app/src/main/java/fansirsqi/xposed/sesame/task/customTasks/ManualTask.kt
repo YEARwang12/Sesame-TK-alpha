@@ -78,6 +78,16 @@ object ManualTask {
                                 }
                             }
 
+                            CustomTask.FOREST_ENERGY_RAIN -> {
+                                val instance = getForestInstance()
+                                if (instance != null) {
+                                    val exchange = extraParams["exchangeEnergyRainCard"] as? Boolean ?: false
+                                    instance.manualUseEnergyRain(exchange)
+                                } else {
+                                    Log.record("ManualTask", "❌ 无法加载森林模块")
+                                }
+                            }
+
                             // 庄园类任务
                             CustomTask.FARM_SEND_BACK_ANIMAL -> getFarmInstance()?.manualSendBackAnimal()
                             CustomTask.FARM_GAME_LOGIC -> getFarmInstance()?.manualFarmGameLogic()

@@ -65,64 +65,64 @@ object EnergyRainCoroutine {
      */
     private suspend fun energyRain() {
         try {
-            var joEnergyRainHome = JSONObject(AntForestRpcCall.queryEnergyRainHome())
-            randomDelay(250, 400) // 随机延迟 300-400ms
-            if (!ResChecker.checkRes(TAG, joEnergyRainHome)) {
-                Log.record(TAG, "查询能量雨状态失败")
-                return
-            }
-            var hasExecuted = false // 标记是否已执行过能量雨
-            // 1️⃣ 优先执行自己的能量雨
-            if (joEnergyRainHome.getBoolean("canPlayToday")) {
-                startEnergyRain()
-                hasExecuted = true
-                randomDelay(1000, 1200) // 随机延迟 1-1.2秒
-            }
+            var playedCount = 0
+            val maxPlayLimit = 10
 
-            // 2️⃣ 检查是否可以赠送能量雨
-            if (joEnergyRainHome.getBoolean("canGrantStatus")) {
-                Log.record(TAG, "有送能量雨的机会")
-                val joEnergyRainCanGrantList = JSONObject(AntForestRpcCall.queryEnergyRainCanGrantList())
-                val grantInfos = joEnergyRainCanGrantList.getJSONArray("grantInfos")
-                val giveEnergyRainSet = AntForest.giveEnergyRainList!!.value
-                var granted = false
-                for (j in 0 until grantInfos.length()) {
-                    val grantInfo = grantInfos.getJSONObject(j)
-                    if (grantInfo.getBoolean("canGrantedStatus")) {
-                        val uid = grantInfo.getString("userId")
-                        if (giveEnergyRainSet.contains(uid)) {
-                            val rainJsonObj = JSONObject(AntForestRpcCall.grantEnergyRainChance(uid))
-                            Log.record(TAG, "尝试送能量雨给【${UserMap.getMaskName(uid)}】")
-                            if (ResChecker.checkRes(TAG, rainJsonObj)) {
-                                Log.forest("赠送能量雨机会给🌧️[${UserMap.getMaskName(uid)}]#${UserMap.getMaskName(UserMap.currentUid)}")
-                                randomDelay(300, 400) // 随机延迟 300-400ms
-                                // 赠送成功后，检查是否还能再玩一次
-                                if (!hasExecuted) {
-                                    val recheckHome = JSONObject(AntForestRpcCall.queryEnergyRainHome())
-                                    if (ResChecker.checkRes(TAG, recheckHome) && recheckHome.getBoolean("canPlayToday")) {
-                                        startEnergyRain()
-                                        hasExecuted = true
-                                    }
+            do {
+                val joEnergyRainHome = JSONObject(AntForestRpcCall.queryEnergyRainHome())
+                randomDelay(250, 400) // 随机延迟 300-400ms
+                if (!ResChecker.checkRes(TAG, joEnergyRainHome)) {
+                    Log.record(TAG, "查询能量雨状态失败")
+                    break
+                }
+
+                val canPlayToday = joEnergyRainHome.optBoolean("canPlayToday", false)
+                val canGrantStatus = joEnergyRainHome.optBoolean("canGrantStatus", false)
+
+                if (canPlayToday) {
+                    startEnergyRain()
+                    playedCount++
+                    randomDelay(3000, 5000) // 随机延迟3-5秒
+                    continue
+                }
+
+                // 2️⃣ 检查是否可以赠送能量雨
+                if (canGrantStatus) {
+                    Log.record(TAG, "有送能量雨的机会")
+                    val joEnergyRainCanGrantList = JSONObject(AntForestRpcCall.queryEnergyRainCanGrantList())
+                    val grantInfos = joEnergyRainCanGrantList.optJSONArray("grantInfos") ?: org.json.JSONArray()
+                    val giveEnergyRainSet = AntForest.giveEnergyRainList!!.value
+                    var granted = false
+
+                    for (j in 0 until grantInfos.length()) {
+                        val grantInfo = grantInfos.getJSONObject(j)
+                        if (grantInfo.optBoolean("canGrantedStatus", false)) {
+                            val uid = grantInfo.getString("userId")
+                            if (giveEnergyRainSet.contains(uid)) {
+                                val rainJsonObj = JSONObject(AntForestRpcCall.grantEnergyRainChance(uid))
+                                Log.record(TAG, "尝试送能量雨给【${UserMap.getMaskName(uid)}】")
+                                if (ResChecker.checkRes(TAG, rainJsonObj)) {
+                                    Log.forest("赠送能量雨机会给🌧️[${UserMap.getMaskName(uid)}]#${UserMap.getMaskName(UserMap.currentUid)}")
+                                    randomDelay(300, 400) // 随机延迟 300-400ms
+                                    granted = true
+                                    break
+                                } else {
+                                    Log.error(TAG, "送能量雨失败 $rainJsonObj")
                                 }
-                            } else {
-                                Log.error(TAG, "送能量雨失败 $rainJsonObj")
                             }
-                            granted = true
-                            break
                         }
                     }
+                    if (granted) {
+                        continue
+                    } else {
+                        Log.record(TAG, "今日无可送能量雨好友或已达到赠送上限")
+                    }
                 }
-                if (!granted) {
-                    Log.record(TAG, "今日已无可送能量雨好友")
-                }
-            }
+                break
+            } while (playedCount < maxPlayLimit)
 
-            // 3️⃣ 最后检查：如果前面都没执行过，再次尝试
-            if (!hasExecuted) {
-                joEnergyRainHome = JSONObject(AntForestRpcCall.queryEnergyRainHome())
-                if (ResChecker.checkRes(TAG, joEnergyRainHome) && joEnergyRainHome.getBoolean("canPlayToday")) {
-                    startEnergyRain()
-                }
+            if (playedCount >= maxPlayLimit) {
+                Log.record(TAG, "能量雨执行达到单次任务上限($maxPlayLimit)，停止执行")
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
             // 协程取消是正常现象，不记录为错误

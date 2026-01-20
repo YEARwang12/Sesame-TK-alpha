@@ -407,6 +407,8 @@ class ApplicationHook {
                                 if (task == CustomTask.FOREST_WHACK_MOLE) {
                                     extraParams["whackMoleMode"] = intent.getIntExtra("whackMoleMode", 1)
                                     extraParams["whackMoleGames"] = intent.getIntExtra("whackMoleGames", 5)
+                                } else if (task == CustomTask.FOREST_ENERGY_RAIN) {
+                                    extraParams["exchangeEnergyRainCard"] = intent.getBooleanExtra("exchangeEnergyRainCard", false)
                                 } else if (task == CustomTask.FARM_SPECIAL_FOOD) {
                                     extraParams["specialFoodCount"] = intent.getIntExtra("specialFoodCount", 0)
                                 } else if (task == CustomTask.FARM_USE_TOOL) {

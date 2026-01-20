@@ -537,6 +537,56 @@ public class AntFarmRpcCall {
                 "[{\"friendFarmId\":\"" + farmId + "\",\"hireActionType\":\"HIRE_IN_FRIEND_FARM\",\"hireAnimalId\":\"" + animalId + "\",\"requestType\":\"NORMAL\",\"sceneCode\":\"ANTFARM\",\"sendCardChat\":false,\"source\":\"H5\",\"version\":\"" + VERSION + "\"}]");
     }
 
+    /**
+     * 雇佣NPC小鸡（修复版：支持传入source）
+     * @param animalId 动物ID
+     * @param source 请求来源，如 "zhimaxiaoji_lianjin"
+     */
+    public static String hireNpcAnimal(String animalId, String source) throws JSONException {
+        JSONObject args = new JSONObject();
+        args.put("hireActionType", "HIRE_IN_SELF_FARM");
+        args.put("hireAnimalId", animalId);
+        args.put("isNpcAnimal", true);
+        args.put("requestType", "NORMAL");
+        args.put("sceneCode", "ANTFARM");
+        args.put("source", source);
+        args.put("version", VERSION);
+        return RequestManager.requestString("com.alipay.antfarm.hireAnimal", "[" + args.toString() + "]");
+    }
+
+    /**
+     * 遣返NPC小鸡（领取奖励）
+     */
+    public static String sendBackNpcAnimal(String animalId, String currentFarmId, String masterFarmId) throws JSONException {
+        JSONObject args = new JSONObject();
+        args.put("animalId", animalId);
+        args.put("currentFarmId", currentFarmId);
+        args.put("masterFarmId", masterFarmId);
+        args.put("receiveNPCReward", true); // 关键参数：领取奖励
+        args.put("requestType", "NORMAL");
+        args.put("sceneCode", "ANTFARM");
+        args.put("sendType", "NORMAL");
+        args.put("source", "H5");
+        args.put("version", VERSION);
+        return RequestManager.requestString("com.alipay.antfarm.sendBackAnimal", "[" + args.toString() + "]");
+    }
+
+    /**
+     * 获取芝麻NPC任务列表
+     */
+    public static String listZhimaNpcFarmTask() {
+        String args = "[{\"requestType\":\"NORMAL\",\"sceneCode\":\"ANTFARM\",\"source\":\"zhimaxiaoji_lianjin\",\"taskSceneCode\":\"ANTFARM_ZHIMA_NPC_TASK\",\"version\":\"" + VERSION + "\"}]";
+        return RequestManager.requestString("com.alipay.antfarm.listFarmTask", args);
+    }
+
+    /**
+     * 领取芝麻NPC任务奖励
+     */
+    public static String receiveZhimaNpcFarmTaskAward(String taskId) {
+        String args = "[{\"requestType\":\"NORMAL\",\"sceneCode\":\"ANTFARM\",\"source\":\"zhimaxiaoji_lianjin\",\"taskId\":\"" + taskId + "\",\"taskSceneCode\":\"ANTFARM_ZHIMA_NPC_TASK\",\"version\":\"" + VERSION + "\"}]";
+        return RequestManager.requestString("com.alipay.antfarm.receiveFarmTaskAward", args);
+    }
+
     public static String DrawPrize() {
         return RequestManager.requestString("com.alipay.antfarm.DrawPrize",
                 "[{\"requestType\":\"RPC\",\"sceneCode\":\"ANTFARM\",\"source\":\"chouchoule\"}]");

@@ -396,6 +396,14 @@ public class AntForestRpcCall {
         return RequestManager.requestString("alipay.antforest.forest.h5.collectProp", new JSONArray().put(jo).toString());
     }
 
+    /** 收取能量炸弹卡 */
+    public static String collectBombCardEnergy(String propId) throws JSONException {
+        JSONObject jo = new JSONObject();
+        jo.put("propId", propId);
+        jo.put("source", "chInfo_ch_appcenter__chsub_9patch");
+        return RequestManager.requestString("alipay.antforest.forest.h5.collectBombCardEnergy", new JSONArray().put(jo).toString());
+    }
+
     public static String itemList(String labelType) {
         return RequestManager.requestString(
                 "com.alipay.antiep.itemList",

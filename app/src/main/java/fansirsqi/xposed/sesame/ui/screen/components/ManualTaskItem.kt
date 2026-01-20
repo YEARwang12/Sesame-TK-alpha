@@ -15,6 +15,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -60,7 +61,9 @@ fun ManualTaskItem(
     selectedTool: String = "BIG_EATER_TOOL",
     onToolChange: (String) -> Unit = {},
     toolCount: String = "1",
-    onToolCountChange: (String) -> Unit = {}
+    onToolCountChange: (String) -> Unit = {},
+    exchangeEnergyRainCard: Boolean = false,
+    onExchangeEnergyRainCardChange: (Boolean) -> Unit = {}
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -132,6 +135,17 @@ fun ManualTaskItem(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
+                } else if (task == CustomTask.FOREST_ENERGY_RAIN) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable { onExchangeEnergyRainCardChange(!exchangeEnergyRainCard) }
+                    ) {
+                        Checkbox(
+                            checked = exchangeEnergyRainCard,
+                            onCheckedChange = { onExchangeEnergyRainCardChange(it) }
+                        )
+                        Text(text = "是否兑换使用能量雨卡", style = MaterialTheme.typography.bodyMedium)
+                    }
                 } else if (task == CustomTask.FARM_SPECIAL_FOOD) {
                     OutlinedTextField(
                         value = specialFoodCount,

@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import fansirsqi.xposed.sesame.model.Model
 import fansirsqi.xposed.sesame.task.antForest.AntForest
 import fansirsqi.xposed.sesame.task.customTasks.CustomTask
+import fansirsqi.xposed.sesame.task.customTasks.ManualTaskModel
 import fansirsqi.xposed.sesame.ui.screen.components.ManualTaskItem
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -36,6 +37,9 @@ fun ManualTaskScreen(
     val tasks = CustomTask.entries.toTypedArray()
     // 从模型系统中读取实例（此时 getFields() 返回的字段已被 Config.load 挂载了正确的值）
     val antForestModel = remember { Model.getModel(AntForest::class.java) }
+    val manualTaskModel = remember { Model.getModel(ManualTaskModel::class.java) }
+    val title = manualTaskModel?.getName() ?: "手动调度任务"
+
     // 初始化打地鼠参数
     val initialMode = remember(antForestModel) {
         val mode = antForestModel?.whackMoleMode?.value ?: 1
@@ -53,10 +57,13 @@ fun ManualTaskScreen(
     var selectedTool by remember { mutableStateOf("BIG_EATER_TOOL") }
     var toolCount by remember { mutableStateOf("1") }
 
+    // 能量雨状态
+    var exchangeEnergyRainCard by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("手动任务流程") },
+                title = { Text(title) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -77,6 +84,10 @@ fun ManualTaskScreen(
                         "whackMoleGames" to (whackMoleGames.toIntOrNull() ?: 5)
                     )
 
+                    CustomTask.FOREST_ENERGY_RAIN -> mapOf(
+                        "exchangeEnergyRainCard" to exchangeEnergyRainCard
+                    )
+
                     CustomTask.FARM_SPECIAL_FOOD -> {
                         val count = specialFoodCount.toIntOrNull() ?: 0
                         mapOf("specialFoodCount" to count)
@@ -93,7 +104,7 @@ fun ManualTaskScreen(
                 ManualTaskItem(
                     task = task,
                     onClick = { onTaskClick(task, params) },
-                    hasSettings = task == CustomTask.FOREST_WHACK_MOLE || task == CustomTask.FARM_SPECIAL_FOOD || task == CustomTask.FARM_USE_TOOL,
+                    hasSettings = task == CustomTask.FOREST_WHACK_MOLE || task == CustomTask.FOREST_ENERGY_RAIN || task == CustomTask.FARM_SPECIAL_FOOD || task == CustomTask.FARM_USE_TOOL,
                     whackMoleMode = whackMoleMode,
                     onModeChange = { whackMoleMode = it },
                     whackMoleGames = whackMoleGames,
@@ -103,7 +114,9 @@ fun ManualTaskScreen(
                     selectedTool = selectedTool,
                     onToolChange = { selectedTool = it },
                     toolCount = toolCount,
-                    onToolCountChange = { toolCount = it }
+                    onToolCountChange = { toolCount = it },
+                    exchangeEnergyRainCard = exchangeEnergyRainCard,
+                    onExchangeEnergyRainCardChange = { exchangeEnergyRainCard = it }
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = Color.LightGray)
             }
