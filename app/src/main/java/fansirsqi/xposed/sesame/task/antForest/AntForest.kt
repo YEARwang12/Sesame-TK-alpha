@@ -2745,7 +2745,7 @@ class AntForest : ModelTask(), EnergyCollectCallback {
                         if (!extInfo.isEmpty()) {
                             val extInfoObj = JSONObject(extInfo)
                             val leftEnergy = extInfoObj.optString("leftEnergy", "0").toDouble()
-                            if (leftEnergy > 3000 || ("true" == extInfoObj.optString(
+                            if (leftEnergy > 20000 || ("true" == extInfoObj.optString(
                                     "overLimitToday",
                                     "false"
                                 ) && leftEnergy >= 1)
