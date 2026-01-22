@@ -28,7 +28,9 @@ import fansirsqi.xposed.sesame.entity.AlipayVersion
 import fansirsqi.xposed.sesame.hook.Toast.show
 import fansirsqi.xposed.sesame.hook.TokenHooker.start
 import fansirsqi.xposed.sesame.hook.XposedEnv.processName
+import fansirsqi.xposed.sesame.hook.internal.AlipayMiniMarkHelper
 import fansirsqi.xposed.sesame.hook.internal.LocationHelper
+import fansirsqi.xposed.sesame.hook.internal.AuthCodeHelper
 import fansirsqi.xposed.sesame.hook.internal.SecurityBodyHelper
 import fansirsqi.xposed.sesame.hook.keepalive.SmartSchedulerManager
 import fansirsqi.xposed.sesame.hook.keepalive.SmartSchedulerManager.cleanup
@@ -56,6 +58,7 @@ import fansirsqi.xposed.sesame.task.MainTask
 import fansirsqi.xposed.sesame.task.MainTask.Companion.newInstance
 import fansirsqi.xposed.sesame.task.ModelTask.Companion.stopAllTask
 import fansirsqi.xposed.sesame.task.TaskRunnerAdapter
+import fansirsqi.xposed.sesame.task.antForest.AntForest
 import fansirsqi.xposed.sesame.task.customTasks.CustomTask
 import fansirsqi.xposed.sesame.task.customTasks.ManualTask
 import fansirsqi.xposed.sesame.task.customTasks.ManualTaskModel
@@ -91,7 +94,6 @@ import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Member
 import java.lang.reflect.Method
 import java.util.Calendar
-import java.util.Objects
 import kotlin.concurrent.Volatile
 
 class ApplicationHook {
@@ -234,7 +236,10 @@ class ApplicationHook {
                         ensureScheduler()
 
                         SecurityBodyHelper.init(classLoader!!)
+                        AlipayMiniMarkHelper.init(classLoader!!)
                         LocationHelper.init(classLoader!!)
+                        AuthCodeHelper.init(classLoader!!)
+                        AuthCodeHelper.getAuthCode("2021005114632037" )
 
                         initVersionInfo(packageName)
                         loadLibs()
@@ -336,7 +341,7 @@ class ApplicationHook {
         } else {
             try {
                 val pInfo: PackageInfo = appContext!!.packageManager.getPackageInfo(packageName!!, 0)
-                alipayVersion = AlipayVersion(Objects.requireNonNullElse(pInfo.versionName, ""))
+                alipayVersion = AlipayVersion(pInfo.versionName.toString())
             } catch (_: Exception) {
                 alipayVersion = AlipayVersion("")
             }
@@ -385,14 +390,12 @@ class ApplicationHook {
                     val targetUserId = intent.getStringExtra("userId")
                     val currentUserId = HookUtil.getUserId(classLoader!!)
                     if (targetUserId != null && targetUserId != currentUserId) {
-                        record(
-                            TAG,
-                            "忽略非当前用户的重启广播: target=" + targetUserId + ", current=" + currentUserId
-                        )
+                        record(TAG, "忽略非当前用户的重启广播: target=$targetUserId, current=$currentUserId")
                         return@Runnable
                     }
                     initHandler()
                 })
+
                 BroadcastActions.RE_LOGIN -> reOpenApp()
                 BroadcastActions.RPC_TEST -> handleRpcTest(intent)
                 BroadcastActions.MANUAL_TASK -> {
@@ -404,20 +407,32 @@ class ApplicationHook {
                             try {
                                 val task = CustomTask.valueOf(normalizedTaskName)
                                 val extraParams = HashMap<String, Any>()
-                                if (task == CustomTask.FOREST_WHACK_MOLE) {
-                                    extraParams["whackMoleMode"] = intent.getIntExtra("whackMoleMode", 1)
-                                    extraParams["whackMoleGames"] = intent.getIntExtra("whackMoleGames", 5)
-                                } else if (task == CustomTask.FOREST_ENERGY_RAIN) {
-                                    extraParams["exchangeEnergyRainCard"] = intent.getBooleanExtra("exchangeEnergyRainCard", false)
-                                } else if (task == CustomTask.FARM_SPECIAL_FOOD) {
-                                    extraParams["specialFoodCount"] = intent.getIntExtra("specialFoodCount", 0)
-                                } else if (task == CustomTask.FARM_USE_TOOL) {
-                                    extraParams["toolType"] = intent.getStringExtra("toolType") ?: ""
-                                    extraParams["toolCount"] = intent.getIntExtra("toolCount", 1)
+                                when (task) {
+                                    CustomTask.FOREST_WHACK_MOLE -> {
+                                        extraParams["whackMoleMode"] = intent.getIntExtra("whackMoleMode", 1)
+                                        extraParams["whackMoleGames"] = intent.getIntExtra("whackMoleGames", 5)
+                                    }
+
+                                    CustomTask.FOREST_ENERGY_RAIN -> {
+                                        extraParams["exchangeEnergyRainCard"] = intent.getBooleanExtra("exchangeEnergyRainCard", false)
+                                    }
+
+                                    CustomTask.FARM_SPECIAL_FOOD -> {
+                                        extraParams["specialFoodCount"] = intent.getIntExtra("specialFoodCount", 0)
+                                    }
+
+                                    CustomTask.FARM_USE_TOOL -> {
+                                        extraParams["toolType"] = intent.getStringExtra("toolType") ?: ""
+                                        extraParams["toolCount"] = intent.getIntExtra("toolCount", 1)
+                                    }
+
+                                    else -> {
+                                        record(TAG, "❌ 无效的任务指令: $taskName")
+                                    }
                                 }
                                 ManualTask.runSingle(task, extraParams)
                             } catch (e: Exception) {
-                                record(TAG, "❌ 无效的任务指令: $taskName")
+                                record(TAG, "❌ 无效的任务指令: $taskName -> ${e.message}")
                             }
                         } else {
                             for (model in Model.modelArray) {
@@ -486,10 +501,15 @@ class ApplicationHook {
             if (!VersionHook.hasVersion() || alipayVersion.toString().isEmpty()) {
                 return false
             }
-            // 例如：10.6.58.8000 <= 10.6.58.99999，但 10.6.59 > 10.6.58.99999
-            record(TAG, "目标应用版本 $alipayVersion 高于 10.6.58，不支持自动过滑块验证")
-            return alipayVersion <= AlipayVersion("10.6.58.99999")
 
+            val maxSupported = AlipayVersion("10.6.58.99999")
+            if (alipayVersion > maxSupported) {
+                // 只有在不支持时才打印警告
+                record(TAG, "目标应用版本 $alipayVersion 高于 10.6.58，不支持自动过滑块验证")
+                return false
+            }
+
+            return true
         }
 
         @Volatile
@@ -590,7 +610,6 @@ class ApplicationHook {
                 }
             }
         }
-
 
 
         fun scheduleNextExecutionInternal(lastTime: Long) {

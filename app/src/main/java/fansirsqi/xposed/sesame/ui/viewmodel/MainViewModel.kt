@@ -48,12 +48,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         ) : ModuleStatus()
     }
 
-    // 1. 定义服务状态 (Root/Shizuku/None)
-    sealed class ServiceStatus {
-        data object Loading : ServiceStatus()
-        data class Active(val type: String) : ServiceStatus() // type = "Root" or "Shizuku"
-        data object Inactive : ServiceStatus()
-    }
+
 
     companion object {
         const val TAG = "MainViewModel"
@@ -62,12 +57,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // 1. 定义状态
     private val prefs = application.getSharedPreferences(PREFERENCES_KEY, Context.MODE_PRIVATE)
-
-
-    private val _serviceStatus = MutableStateFlow<ServiceStatus>(ServiceStatus.Loading)
-    val serviceStatus = _serviceStatus.asStateFlow()
-
-    // --- StateFlows ---
 
     private val _oneWord = MutableStateFlow("正在获取句子...")
     val oneWord: StateFlow<String> = _oneWord.asStateFlow()
@@ -94,6 +83,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         refreshModuleFrameworkStatus()
     }
 
+
     private var isInitialized = false
 
     fun initAppLogic() {
@@ -105,12 +95,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             copyAssets()
 
             // 加载初始数据
-            reloadUserConfigs()
+            refreshUserConfigs()
             fetchOneWord()
-
             // 初始检查状态
             refreshModuleFrameworkStatus()
             refreshActiveUser()
+            // 🔥 新增：触发 CommandService 连接
+            // 连接成功后，AIDL 回调会自动更新 serviceStatus
+            CommandUtil.connect(getApplication())
 
             // 注册监听
             LsposedServiceManager.addConnectionListener(serviceListener)
@@ -157,7 +149,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * ✨ 核心逻辑 2：刷新当前激活用户
+     * 刷新当前激活用户
      * 从 DataStore (文件) 读取
      */
     private fun refreshActiveUser() {
@@ -176,16 +168,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             DirectoryWatcher.observeDirectoryChanges(Files.CONFIG_DIR)
                 .debounce(100)
                 .collectLatest {
-                    reloadUserConfigs()
+                    refreshUserConfigs()
                     refreshActiveUser()
                 }
         }
     }
 
-    fun reloadUserConfigs() {
+    /**
+     * 刷新用户配置
+     */
+    fun refreshUserConfigs() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-
                 val latestUserIds = FansirsqiUtil.getFolderList(Files.CONFIG_DIR.absolutePath)
                 val newList = mutableListOf<UserEntity>()
                 for (userId in latestUserIds) {
@@ -193,28 +187,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     UserMap.get(userId)?.let { newList.add(it) }
                 }
                 _userList.value = newList
-
             } catch (e: Exception) {
                 Log.e(TAG, "Error reloading user configs", e)
             }
         }
     }
 
-    // --- 其他常规逻辑 ---
 
     fun refreshDeviceInfo(context: Context) {
         viewModelScope.launch {
             val info = DeviceInfoUtil.showInfo(context)
             _deviceInfo.value = info
-            // 独立获取服务状态
-            _serviceStatus.value = ServiceStatus.Loading
-            val shellType = withContext(Dispatchers.IO) { CommandUtil.getShellType(context) }
-
-            _serviceStatus.value = when (shellType) {
-                "RootShell" -> ServiceStatus.Active("Root")
-                "ShizukuShell" -> ServiceStatus.Active("Shizuku")
-                else -> ServiceStatus.Inactive
-            }
         }
     }
 
