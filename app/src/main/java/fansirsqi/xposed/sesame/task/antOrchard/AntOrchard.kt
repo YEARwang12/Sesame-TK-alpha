@@ -4,7 +4,6 @@ import android.util.Base64
 import fansirsqi.xposed.sesame.data.Status
 import fansirsqi.xposed.sesame.data.StatusFlags
 import fansirsqi.xposed.sesame.entity.AlipayUser
-import fansirsqi.xposed.sesame.entity.MapperEntity
 import fansirsqi.xposed.sesame.hook.internal.SecurityBodyHelper
 import fansirsqi.xposed.sesame.model.ModelFields
 import fansirsqi.xposed.sesame.model.ModelGroup
@@ -37,11 +36,13 @@ class AntOrchard : ModelTask() {
     private lateinit var executeInterval: IntegerModelField
     private lateinit var receiveSevenDayGift: BooleanModelField
     private lateinit var receiveOrchardTaskAward: BooleanModelField
-    private lateinit var orchardSpreadManureCount: IntegerModelField
+    // {{ 修改：分离果树和摇钱树的施肥次数配置 }}
+    private lateinit var orchardSpreadManureCountMain: IntegerModelField
+    private lateinit var orchardSpreadManureCountYeb: IntegerModelField
+
     private lateinit var assistFriendList: SelectModelField
     //模式选择
     private lateinit var plantModeField: ChoiceModelField
-
 
 
     override fun getName(): String = "农场"
@@ -73,9 +74,14 @@ class AntOrchard : ModelTask() {
         modelFields.addField(
             BooleanModelField("receiveOrchardTaskAward", "收取农场任务奖励", false).also { receiveOrchardTaskAward = it }
         )
+        // {{ 修改：添加果树和摇钱树的独立设置项 }}
         modelFields.addField(
-            IntegerModelField("orchardSpreadManureCount", "农场每日施肥次数", 0).also { orchardSpreadManureCount = it }
+            IntegerModelField("orchardSpreadManureCount", "果树每日施肥次数", 0).also { orchardSpreadManureCountMain = it }
         )
+        modelFields.addField(
+            IntegerModelField("orchardSpreadManureCountYeb", "摇钱树每日施肥次数", 0).also { orchardSpreadManureCountYeb = it }
+        )
+
         modelFields.addField(
             SelectModelField("assistFriendList", "助力好友列表", LinkedHashSet(), AlipayUser::getList).also { assistFriendList = it }
         )
@@ -163,8 +169,8 @@ class AntOrchard : ModelTask() {
             limitedTimeChallenge()
 
             // 施肥逻辑
-            val orchardSpreadManureCountValue = orchardSpreadManureCount.value
-            if (orchardSpreadManureCountValue > 0) {
+            // {{ 修改：调用新的施肥分发逻辑 }}
+            if (orchardSpreadManureCountMain.value > 0 || orchardSpreadManureCountYeb.value > 0) {
                 CoroutineUtils.sleepCompat(200)
                 orchardSpreadManure()
             }
@@ -190,17 +196,22 @@ class AntOrchard : ModelTask() {
     private fun orchardSpreadManure() {
         try {
             val modeSet = plantModeField.value
-            val targetLimit = orchardSpreadManureCount.value
-
+            // {{ 修改：分别获取两个配置的上限值 }}
+            val targetLimitMain = orchardSpreadManureCountMain.value
+            val targetLimitYeb = orchardSpreadManureCountYeb.value
 
             // 1. 如果是 摇钱树模式(YEB) 或者 混合模式(HYBRID)
             if (modeSet == PlantModeType.YEB || modeSet == PlantModeType.HYBRID) {
-                waterTree("yeb", targetLimit)
+                if (targetLimitYeb > 0) {
+                    waterTree("yeb", targetLimitYeb)
+                }
             }
 
             // 2. 如果是 果树模式(MAIN) 或者 混合模式(HYBRID)
             if (modeSet == PlantModeType.MAIN || modeSet == PlantModeType.HYBRID) {
-                waterTree("main", targetLimit)
+                if (targetLimitMain > 0) {
+                    waterTree("main", targetLimitMain)
+                }
             }
 
         } catch (t: Throwable) {
@@ -244,8 +255,15 @@ class AntOrchard : ModelTask() {
                 val taobaoDataStr = orchardIndexData.optString("taobaoData")
                 if (taobaoDataStr.isEmpty()) break
 
-                val gameInfo = JSONObject(taobaoDataStr).optJSONObject("gameInfo")
-                val accountInfo = gameInfo?.optJSONObject("accountInfo")
+                // {{ 修改：适配不同场景的肥料数据结构 }}
+                val taobaoData = JSONObject(taobaoDataStr)
+                val accountInfo = if (isMain) {
+                    taobaoData.optJSONObject("gameInfo")?.optJSONObject("accountInfo")
+                } else {
+                    // 摇钱树模式下 taobaoData 结构不同，通常肥料信息在 common 字段或者复用 gameInfo，需根据实际情况防御性获取
+                    // 根据日志，摇钱树模式下 orchardIndex 返回的 taobaoData 依然包含 gameInfo->accountInfo (24日 13:13:18.50 日志)
+                    taobaoData.optJSONObject("gameInfo")?.optJSONObject("accountInfo")
+                }
 
                 if (accountInfo != null) {
                     val happyPoint = accountInfo.optInt("happyPoint", 0)
@@ -257,11 +275,12 @@ class AntOrchard : ModelTask() {
                     }
                 }
 
-                // 核心逻辑：果树施肥到199次时，强制开启5连，突破200次限制到204次
+                // 核心逻辑：施肥到199次时，强制开启5连，突破200次限制到204次
+                // {{ 修改：移除 isMain 限制，让摇钱树也支持 199->204 逻辑 }}
                 var useBatchSpread = false
                 var actualWaterTimes = 1
 
-                if (isMain && totalWatered == 199) {
+                if (totalWatered == 199) {
                     useBatchSpread = true
                     actualWaterTimes = 5 // 预期增加5次
                     Log.record(TAG, "$sceneName 触发199次临界点，开启5连施肥模式以突破限制")
@@ -275,9 +294,10 @@ class AntOrchard : ModelTask() {
                 val spreadJson = JSONObject(spreadResponse)
                 val resultCode = spreadJson.optString("resultCode")
 
-                // 摇钱树特有逻辑：达到上限停止 (P14)
-                if (resultCode == "P14" && !isMain) {
-                    Log.record(TAG, "$sceneName 已达持仓金额上限，停止施肥")
+                // 摇钱树特有逻辑：达到上限停止
+                // {{ 修改：增加 P13 状态码判定 (摇钱树施肥已达当日上限) }}
+                if ((resultCode == "P14" || resultCode == "P13") && !isMain) {
+                    Log.record(TAG, "$sceneName 已达持仓金额上限/次数上限，停止施肥")
                     return
                 }
 
@@ -292,10 +312,14 @@ class AntOrchard : ModelTask() {
                     val spreadTaobaoData = JSONObject(spreadTaobaoDataStr)
 
                     // 尝试从服务端获取今日次数，如果不准确(或服务端没返回)则手动累加
-                    // 注意：摇钱树模式下 taobaoData 结构可能不同，这里主要针对果树统计
                     var dailyCount = 0
+
+                    // {{ 修改：针对不同场景解析统计数据 }}
                     if (isMain && spreadTaobaoData.has("statistics")) {
                         dailyCount = spreadTaobaoData.getJSONObject("statistics").optInt("dailyAppWateringCount")
+                    } else if (!isMain) {
+                        // 摇钱树尝试解析 dailyRevenueInfo 或手动累加
+                        // 由于日志中摇钱树返回数据结构差异大，这里保持手动累加作为兜底，若有明确字段可补充
                     }
 
                     if (dailyCount > 0) {
@@ -306,7 +330,21 @@ class AntOrchard : ModelTask() {
 
                     Status.setIntFlagToday(statusKey, totalWatered)
 
-                    val stageText = spreadTaobaoData.optJSONObject("currentStage")?.optString("stageText") ?: ""
+                    // {{ 修改：提取进度文本，统一日志格式 }}
+                    var stageText = ""
+                    if (isMain) {
+                        stageText = spreadTaobaoData.optJSONObject("currentStage")?.optString("stageText") ?: ""
+                    } else {
+                        // 尝试从 yebScenePlantInfo 提取进度
+                        val yebInfo = spreadTaobaoData.optJSONObject("yebScenePlantInfo")?.optJSONObject("plantProgressInfo")
+                        if (yebInfo != null) {
+                            val levelProgress = yebInfo.optString("levelProgress", "")
+                            if (levelProgress.isNotEmpty()) {
+                                stageText = "当前进度:$levelProgress%"
+                            }
+                        }
+                    }
+
                     Log.farm("施肥💩[$sceneName] $stageText|累计:$totalWatered")
                 } else {
                     // 兜底逻辑
@@ -327,6 +365,7 @@ class AntOrchard : ModelTask() {
         Log.record(TAG, "$sceneName 施肥结束，最终累计: $totalWatered")
     }
 
+    // ... 其余方法保持不变 ...
     private fun receiveMoneyTreeReward() {
         try {
             val cal = Calendar.getInstance()
