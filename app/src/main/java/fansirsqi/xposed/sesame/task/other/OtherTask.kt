@@ -8,6 +8,7 @@ import fansirsqi.xposed.sesame.model.modelFieldExt.SelectAndCountModelField
 import fansirsqi.xposed.sesame.model.modelFieldExt.SelectModelField
 import fansirsqi.xposed.sesame.task.ModelTask
 import fansirsqi.xposed.sesame.task.other.credit2101.Credit2101
+import fansirsqi.xposed.sesame.task.other.haojia.HaoJiaWuyou
 import fansirsqi.xposed.sesame.util.Log
 
 class OtherTask : ModelTask() {
@@ -29,12 +30,14 @@ class OtherTask : ModelTask() {
     /** @brief 信用2101 事件列表 */
     private var creditOptions: SelectAndCountModelField? = null
 
-
     /** @brief 信用2101 自动开宝箱 */
     private var autoOpenChest: BooleanModelField? = null
 
     /** @brief 信用2101 仅完成1次的事件列表 */
     private var creditOnceOptions: SelectModelField? = null
+
+    /** @brief 好家无忧卡 开关 */
+    private var haojiaWuyou: BooleanModelField? = null
 
 
     override fun getFields(): ModelFields {
@@ -49,7 +52,6 @@ class OtherTask : ModelTask() {
                 "AutoOpenChest", "信用2101 | 自动开宝箱", false
             ).apply { autoOpenChest = this })
 
-
         fields.addField(
             SelectAndCountModelField(
                 "CreditOptions",
@@ -61,13 +63,12 @@ class OtherTask : ModelTask() {
                 creditOptions = it
             })
 
-
-
-
-
-
-
-
+        // 新增好家无忧卡开关
+        fields.addField(
+            BooleanModelField(
+                "haojiaWuyou", "好家无忧卡", false
+            ).apply { haojiaWuyou = this }
+        )
 
         return fields
     }
@@ -77,11 +78,14 @@ class OtherTask : ModelTask() {
             if (credit2101!!.value) {
                 Credit2101.doCredit2101(autoOpenChest!!.value==true,creditOptions!!)
             }
+            // 执行好家无忧卡任务
+            if (haojiaWuyou!!.value) {
+                HaoJiaWuyou.start()
+            }
         } catch (e: Exception) {
             Log.printStackTrace(TAG, e)
         }
     }
-
 
     companion object {
         const val TAG = "OtherTask"

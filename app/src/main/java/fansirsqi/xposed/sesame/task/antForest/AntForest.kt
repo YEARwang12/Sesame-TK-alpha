@@ -213,6 +213,7 @@ class AntForest : ModelTask(), EnergyCollectCallback {
      * 能量炸弹卡
      */
     private var energyBombCardType: ChoiceModelField? = null
+    private var ecoDailyTask: BooleanModelField? = null // 7天环保打卡
 
     /**
      * 用户名缓存：userId -> userName 的映射
@@ -622,6 +623,7 @@ class AntForest : ModelTask(), EnergyCollectCallback {
         modelFields.addField(BooleanModelField("forestChouChouLe", "森林寻宝任务", false).also { forestChouChouLe = it })
 
         modelFields.addField(BooleanModelField("collectGiftBox", "领取礼盒", false).also { collectGiftBox = it })
+        modelFields.addField(BooleanModelField("ecoDailyTask", "森林任务 | 环保打卡", false).also { ecoDailyTask = it })
 
         modelFields.addField(BooleanModelField("medicalHealth", "健康医疗任务 | 开关", false).also { medicalHealth = it })
         modelFields.addField(
@@ -3161,100 +3163,105 @@ class AntForest : ModelTask(), EnergyCollectCallback {
                     break // 如果没有新任务，则返回
                 }
 
-                // 遍历任务
-                for (i in 0..<forestTasksNew.length()) {
-                    val forestTask = forestTasksNew.getJSONObject(i)
-                    val taskInfoList = forestTask.getJSONArray("taskInfoList") // 获取任务信息列表
+                // {{ 定义递归处理函数，支持处理嵌套子任务 }}
+                fun processTask(taskInfo: JSONObject): Boolean {
+                    var actionTaken = false
 
-                    for (j in 0..<taskInfoList.length()) {
-                        val taskInfo = taskInfoList.getJSONObject(j)
-                        val taskBaseInfo = taskInfo.getJSONObject("taskBaseInfo") // 获取任务基本信息
-                        val taskType = taskBaseInfo.getString("taskType") // 获取任务类型
-                        val sceneCode = taskBaseInfo.getString("sceneCode") // 获取场景代码
-                        val taskStatus = taskBaseInfo.getString("taskStatus") // 获取任务状态
+                    // 1. 获取基础信息
+                    val taskBaseInfo = taskInfo.optJSONObject("taskBaseInfo") ?: return false
+                    val taskType = taskBaseInfo.getString("taskType")
+                    val taskStatus = taskBaseInfo.getString("taskStatus")
+                    val sceneCode = taskBaseInfo.getString("sceneCode")
 
-                        val bizInfo = JSONObject(taskBaseInfo.getString("bizInfo")) // 获取业务信息
-                        val taskTitle = bizInfo.optString("taskTitle", taskType) // 获取任务标题
+                    // 2. 环保打卡任务过滤
+                    if (taskType.contains("DAKA") && !ecoDailyTask!!.value) {
+                        return false
+                    }
 
-                        val taskRights = JSONObject(taskInfo.getString("taskRights")) // 获取任务权益
-                        val awardCount = taskRights.optInt("awardCount", 0) // 获取奖励数量
-
-                        // 判断任务状态
-                        if (TaskStatus.FINISHED.name == taskStatus) {
-                            // 领取任务奖励
-                            val joAward = JSONObject(
-                                AntForestRpcCall.receiveTaskAward(
-                                    sceneCode,
-                                    taskType
-                                )
-                            ) // 领取奖励请求
-                            if (ResChecker.checkRes(TAG + "领取森林任务奖励失败:", joAward)) {
-                                Log.forest("森林奖励🎖️[" + taskTitle + "]# " + awardCount + "活力值")
-                                sumawardCount += awardCount
-                                doubleCheck = true // 标记需要重新检查任务
-                            } else {
-                                Log.error(TAG, "领取失败: $taskTitle") // 记录领取失败信息
-                                Log.record(joAward.toString()) // 打印奖励响应
-                            }
-                            GlobalThreadPools.sleepCompat(500)
-                        } else if (TaskStatus.TODO.name == taskStatus) {
-                            // 跳过已在黑名单中的任务
-                            if (TaskBlacklist.isTaskInBlacklist(taskType)) continue
-                            // 执行待完成任务
-                            val bizKey = sceneCode + "_" + taskType
-                            val count = forestTaskTryCount
-                                .computeIfAbsent(bizKey) { _: String? ->
-                                    AtomicInteger(0)
-                                }
-                                .incrementAndGet()
-                            // 完成任务请求
-                            val joFinishTask = JSONObject(
-                                AntForestRpcCall.finishTask(sceneCode, taskType)
-                            )
-
-                            // 检查任务执行结果
-                            if (!ResChecker.checkRes(TAG + "完成森林任务失败:", joFinishTask)) {
-                                // 获取错误码并尝试自动加入黑名单
-                                val errorCode = joFinishTask.optString("code", "")
-                                val errorDesc = joFinishTask.optString("desc", "未知错误")
-                                TaskBlacklist.autoAddToBlacklist(taskType, taskTitle, errorCode)
-                                // 如果重试次数超过1次，手动加入黑名单
-                                if (count > 1) {
-                                    TaskBlacklist.addToBlacklist(taskType, taskTitle)
-                                }
-                            } else {
-                                Log.forest("森林任务🧾️[$taskTitle]")
-                                doubleCheck = true // 标记需要重新检查任务
-                            }
-                        }
-
-                        // 如果是游戏任务类型，查询并处理游戏任务
-                        if ("mokuai_senlin_hlz" == taskType) {
-                            // 游戏任务跳转
-                            val gameUrl = bizInfo.getString("taskJumpUrl")
-                            Log.record(TAG, "跳转到游戏: $gameUrl")
-                            // 模拟跳转游戏任务URL（根据需要可能需要在客户端实际触发）
-                            Log.record(TAG, "等待30S")
-                            GlobalThreadPools.sleepCompat(30000) // 等待任务完成
-                            // 完成任务请求
-                            val joFinishTask = JSONObject(
-                                AntForestRpcCall.finishTask(
-                                    sceneCode,
-                                    taskType
-                                )
-                            ) // 完成任务请求
-
-                            val error = joFinishTask.optString("code", "")
-                            if (ResChecker.checkRes(TAG + "完成游戏任务失败:", joFinishTask)) {
-                                Log.forest("游戏任务完成 🎮️[" + taskTitle + "]# " + awardCount + "活力值")
-                                sumawardCount += awardCount
-                                doubleCheck = true // 标记需要重新检查任务
-                            } else {
-                                TaskBlacklist.autoAddToBlacklist(taskType, taskTitle, error)
+                    // 3. 递归处理子任务 (childrenFirst)
+                    val childTaskTypeList = taskInfo.optJSONArray("childTaskTypeList")
+                    if (childTaskTypeList != null && childTaskTypeList.length() > 0) {
+                        for (k in 0 until childTaskTypeList.length()) {
+                            if (processTask(childTaskTypeList.getJSONObject(k))) {
+                                actionTaken = true
                             }
                         }
                     }
+
+                    // 4. 黑名单检查
+                    if (TaskBlacklist.isTaskInBlacklist(taskType)) return actionTaken
+
+                    val bizInfoStr = taskBaseInfo.optString("bizInfo")
+                    val bizInfo = if (bizInfoStr.isNotEmpty()) JSONObject(bizInfoStr) else JSONObject()
+                    val taskTitle = bizInfo.optString("taskTitle", taskType)
+
+                    val taskRightsStr = taskInfo.optString("taskRights")
+                    val taskRights = if (taskRightsStr.isNotEmpty()) JSONObject(taskRightsStr) else JSONObject()
+                    val awardCount = taskRights.optInt("awardCount", 0)
+
+                    // 5. 执行任务逻辑
+                    if (TaskStatus.FINISHED.name == taskStatus) {
+                        // 领取任务奖励
+                        val joAward = JSONObject(AntForestRpcCall.receiveTaskAward(sceneCode, taskType))
+                        if (ResChecker.checkRes(TAG + "领取森林任务奖励失败:", joAward)) {
+                            Log.forest("森林奖励🎖️[$taskTitle]# ${awardCount}活力值")
+                            sumawardCount += awardCount
+                            actionTaken = true
+                        } else {
+                            Log.error(TAG, "领取失败: $taskTitle")
+                            Log.record(joAward.toString())
+                        }
+                        GlobalThreadPools.sleepCompat(500)
+                    } else if (TaskStatus.TODO.name == taskStatus) {
+                        // 执行待完成任务
+                        val bizKey = sceneCode + "_" + taskType
+                        val count = forestTaskTryCount.computeIfAbsent(bizKey) { AtomicInteger(0) }.incrementAndGet()
+
+                        val joFinishTask = JSONObject(AntForestRpcCall.finishTask(sceneCode, taskType))
+
+                        if (!ResChecker.checkRes(TAG + "完成森林任务失败:", joFinishTask)) {
+                            val errorCode = joFinishTask.optString("code", "")
+                            TaskBlacklist.autoAddToBlacklist(taskType, taskTitle, errorCode)
+                            if (count > 1) {
+                                TaskBlacklist.addToBlacklist(taskType, taskTitle)
+                            }
+                        } else {
+                            Log.forest("森林任务🧾️[$taskTitle]")
+                            actionTaken = true
+                        }
+                    }
+
+                    // 6. 特殊任务处理：游戏任务
+                    if ("mokuai_senlin_hlz" == taskType) {
+                        val gameUrl = bizInfo.optString("taskJumpUrl")
+                        Log.record(TAG, "跳转到游戏: $gameUrl")
+                        Log.record(TAG, "等待30S")
+                        GlobalThreadPools.sleepCompat(30000)
+                        val joFinishTask = JSONObject(AntForestRpcCall.finishTask(sceneCode, taskType))
+                        val error = joFinishTask.optString("code", "")
+                        if (ResChecker.checkRes(TAG + "完成游戏任务失败:", joFinishTask)) {
+                            Log.forest("游戏任务完成 🎮️[$taskTitle]# ${awardCount}活力值")
+                            sumawardCount += awardCount
+                            actionTaken = true
+                        } else {
+                            TaskBlacklist.autoAddToBlacklist(taskType, taskTitle, error)
+                        }
+                    }
+
+                    return actionTaken
                 }
+
+                // 遍历顶层任务列表
+                for (i in 0..<forestTasksNew.length()) {
+                    val forestTask = forestTasksNew.getJSONObject(i)
+                    val taskInfoList = forestTask.getJSONArray("taskInfoList")
+                    for (j in 0..<taskInfoList.length()) {
+                        if (processTask(taskInfoList.getJSONObject(j))) {
+                            doubleCheck = true
+                        }
+                    }
+                }
+
                 if (!doubleCheck) break
             }
         } catch (t: Throwable) {

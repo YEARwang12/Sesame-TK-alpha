@@ -3870,9 +3870,11 @@ class AntFarm : ModelTask() {
         } else {
             Log.record(TAG, "NPC小鸡🤖[${config.nickName}工作中... 当前产出:$currentReward]")
 
-            // 2. 仅芝麻大表鸽支持做任务加速 (目前已知)
-            if (config == NpcConfig.ZHIMA_PIGEON) {
-                handleZhimaPigeonTasks()
+            // 2. 处理各NPC的加速任务
+            when (config) {
+                NpcConfig.ZHIMA_PIGEON -> handleZhimaPigeonTasks()
+                NpcConfig.FARM_CHICKEN -> handleFarmChickenTasks()
+                else -> {}
             }
         }
     }
@@ -3905,6 +3907,81 @@ class AntFarm : ModelTask() {
             }
         } catch (e: Exception) {
             Log.printStackTrace(TAG, "handleZhimaPigeonTasks err", e)
+        }
+    }
+
+    /**
+     * 处理黄金小鸡的加速任务
+     * 对应 RPC: com.alipay.antfarm.listFarmTask (taskSceneCode=ANTFARM_CAIFU_NPC_TASK)
+     */
+    private fun handleGoldChickenTasks() {
+        try {
+            // 注意：需确保 AntFarmRpcCall 中已添加 listGoldChickenFarmTask 方法，参数对应日志中的 requestData
+            val s = AntFarmRpcCall.listGoldChickenFarmTask()
+            val jo = JSONObject(s)
+            if (ResChecker.checkRes(TAG, jo)) {
+                val taskList = jo.optJSONArray("farmTaskList") ?: return
+                for (i in 0 until taskList.length()) {
+                    val task = taskList.getJSONObject(i)
+                    val taskId = task.optString("taskId")
+                    val title = task.optString("title")
+                    val taskStatus = task.optString("taskStatus")
+                    val bizKey = task.optString("bizKey")
+                    val taskMode = task.optString("taskMode")
+
+                    // 1. 领取奖励
+                    if (TaskStatus.FINISHED.name == taskStatus) {
+                        val awardRes = AntFarmRpcCall.receiveFarmTaskAward(taskId)
+                        val awardJo = JSONObject(awardRes)
+                        if (ResChecker.checkRes(TAG, awardJo)) {
+                            val awardCount = task.optInt("awardCount", 0)
+                            Log.farm("NPC任务🤖[完成: $title, 奖励: $awardCount 黄金票]")
+                        }
+                    }
+                    // 2. 做任务 (仅处理 TRIGGER 类型，如"开始攒黄金"、"领体验金")
+                    else if (TaskStatus.TODO.name == taskStatus && taskMode == "TRIGGER") {
+                        val doRes = AntFarmRpcCall.doFarmTask(bizKey)
+                        val doJo = JSONObject(doRes)
+                        if (ResChecker.checkRes(TAG, doJo)) {
+                            Log.farm("NPC任务🤖[触发: $title]")
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.printStackTrace(TAG, "handleGoldChickenTasks err", e)
+        }
+    }
+
+    /**
+     * 处理农场小鸡(肥料鸡)的加速任务
+     * 任务：做美食(ORCHARD_NPC_COOK_TASK)、开宝箱(ORCHARD_NPC_GAME_TASK)
+     */
+    private fun handleFarmChickenTasks() {
+        try {
+            val s = AntFarmRpcCall.listFarmChickenFarmTask()
+            val jo = JSONObject(s)
+            if (ResChecker.checkRes(TAG, jo)) {
+                val taskList = jo.optJSONArray("farmTaskList") ?: return
+                for (i in 0 until taskList.length()) {
+                    val task = taskList.getJSONObject(i)
+                    val taskId = task.optString("taskId")
+                    val title = task.optString("title")
+                    val taskStatus = task.optString("taskStatus")
+
+                    // 仅领取已完成的奖励，任务本身由主循环中的 cook() 和 drawGameCenterAward() 触发
+                    if (TaskStatus.FINISHED.name == taskStatus) {
+                        val awardRes = AntFarmRpcCall.receiveFarmChickenTaskAward(taskId)
+                        val awardJo = JSONObject(awardRes)
+                        if (ResChecker.checkRes(TAG, awardJo)) {
+                            val awardCount = task.optInt("awardCount", 0)
+                            Log.farm("NPC任务🤖[完成: $title, 奖励: $awardCount 肥料]")
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.printStackTrace(TAG, "handleFarmChickenTasks err", e)
         }
     }
 

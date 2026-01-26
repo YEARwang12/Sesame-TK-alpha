@@ -1,6 +1,5 @@
 package fansirsqi.xposed.sesame.task.other.credit2101
 
-
 import android.annotation.SuppressLint
 import fansirsqi.xposed.sesame.data.Status
 import fansirsqi.xposed.sesame.data.StatusFlags
@@ -48,7 +47,6 @@ object Credit2101 {
     //creditSpValue                 印记碎片 购买道具用的
     //staminaAvailable              注能值   进行任务需要的，可以天赋升级
 
-
     //道具类型和ID
     //  SP_PRIZE      印记碎片
     //  CARD_PRIZE    藏品卡片  benefitId：   100021 路引文书(蓝)      100043 驷马难追(紫)       100050 草鞋(蓝)        100051 春秋(蓝)        100061 尾生抱柱(蓝)        100065 铜币(蓝)      100072机械钟(蓝)        100074电子钟(紫)    100075智能手表(金)    100080 破镜重圆(蓝)    100081 凤求凰(蓝)       100082 乞巧针(蓝)          100083 化蝶(紫)         100084 比翼鸟(紫)     100085 白头吟(金)   100070 [日晷]蓝
@@ -79,8 +77,6 @@ object Credit2101 {
     }
     // 私有变量：用于存放整个选项控件
     private var mCreditOptions: SelectAndCountModelField? = null
-
-
 
     /** 故事ID数组 */
     private val STORY_IDS = listOf(
