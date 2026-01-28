@@ -103,12 +103,7 @@ class MainActivity : ComponentActivity() {
                         moduleStatus = moduleStatus,
                         viewModel = viewModel,
                         isDynamicColor = isDynamicColor, // 传给 MainScreen
-                        // 传入回调
                         userList = userList, // 传入列表
-                        // 🔥 处理跳转逻辑
-                        onNavigateToSettings = { selectedUser ->
-                            performNavigationToSettings(selectedUser)
-                        },
                         onEvent = { event -> handleEvent(event) }
                     )
                 }

@@ -970,33 +970,56 @@ class AntSports : ModelTask() {
      * @brief 根据主题 ID 挑选可加入的 pathId
      */
     private fun queryJoinPath(themeId: String?): String? {
+        // 🎯 自定义路径优先
         if (walkCustomPath.value) {
             return walkCustomPathId.value
         }
-        var pathId: String? = null
-        try {
-            val theme = queryWorldMap(walkPathThemeId)
+
+        return try {
+            val theme = queryWorldMap(themeId)
             if (theme == null) {
-                Log.error(TAG, "queryJoinPath-> theme 失败：$theme")
+                Log.error(TAG, "queryJoinPath -> theme 为空，无法继续 当前walkPathThemeId[$themeId]")
                 return null
             }
-            val cityList = theme.getJSONArray("cityList")
+
+            val cityList = theme.optJSONArray("cityList") ?: return null
+            var lastPathId: String? = null
+
             for (i in 0 until cityList.length()) {
-                val cityId = cityList.getJSONObject(i).getString("cityId")
+                val cityObj = cityList.optJSONObject(i) ?: continue
+                val cityId = cityObj.optString("cityId")
+                val cityStatus = cityObj.optString("status")
+
+                // 🚫 非 ONLINE 城市直接跳过
+                if (cityStatus != "ONLINE") {
+                    // Log.record(TAG, "⛔ 城市[$cityId] 状态=$cityStatus，跳过")
+                    continue
+                }
+
                 val city = queryCityPath(cityId) ?: continue
-                val cityPathList = city.getJSONArray("cityPathList")
+                val cityPathList = city.optJSONArray("cityPathList") ?: continue
+
                 for (j in 0 until cityPathList.length()) {
-                    val cityPath = cityPathList.getJSONObject(j)
-                    pathId = cityPath.getString("pathId")
-                    if ("COMPLETED" != cityPath.getString("pathCompleteStatus")) {
+                    val cityPath = cityPathList.optJSONObject(j) ?: continue
+                    val pathId = cityPath.optString("pathId")
+                    val completeStatus = cityPath.optString("pathCompleteStatus")
+
+                    lastPathId = pathId
+
+                    // 🎯 找到第一个未完成路径，直接返回
+                    if (completeStatus != "COMPLETED") {
+                        Log.record(TAG, "✅ 找到未完成路径 pathId=$pathId (cityId=$cityId)")
                         return pathId
                     }
                 }
             }
+
+            Log.record(TAG, "⚠️ 所有城市路径均已完成，返回最后一个 pathId=$lastPathId")
+            return lastPathId
         } catch (t: Throwable) {
-            Log.printStackTrace(TAG, "queryJoinPath err:", t)
+            Log.printStackTrace(TAG, "queryJoinPath 异常:", t)
+            null
         }
-        return pathId
     }
 
     /**

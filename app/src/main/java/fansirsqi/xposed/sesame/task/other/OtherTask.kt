@@ -1,6 +1,7 @@
 package fansirsqi.xposed.sesame.task.other
 
 import fansirsqi.xposed.sesame.entity.OtherEntityProvider.listCreditOptions
+import fansirsqi.xposed.sesame.entity.OtherEntityProvider.listCreditTaskOptions
 import fansirsqi.xposed.sesame.model.ModelFields
 import fansirsqi.xposed.sesame.model.ModelGroup
 import fansirsqi.xposed.sesame.model.modelFieldExt.BooleanModelField
@@ -28,13 +29,11 @@ class OtherTask : ModelTask() {
     private var credit2101: BooleanModelField? = null
 
     /** @brief 信用2101 事件列表 */
-    private var creditOptions: SelectAndCountModelField? = null
+    private var creditEventOptions: SelectAndCountModelField? = null
 
-    /** @brief 信用2101 自动开宝箱 */
-    private var autoOpenChest: BooleanModelField? = null
+    /** @brief 信用2101 任务列表 */
+    private var credit2101OTaskOptions: SelectModelField? = null
 
-    /** @brief 信用2101 仅完成1次的事件列表 */
-    private var creditOnceOptions: SelectModelField? = null
 
     /** @brief 好家无忧卡 开关 */
     private var haojiaWuyou: BooleanModelField? = null
@@ -47,10 +46,15 @@ class OtherTask : ModelTask() {
                 "credit2101", "信用2101", false
             ).apply { credit2101 = this })
 
+
+
         fields.addField(
-            BooleanModelField(
-                "AutoOpenChest", "信用2101 | 自动开宝箱", false
-            ).apply { autoOpenChest = this })
+            SelectModelField(
+                "credit2101Options",
+                "信用2101 | 任务选项",
+                LinkedHashSet<String?>(),
+                listCreditTaskOptions()
+            ).also { credit2101OTaskOptions = it })
 
         fields.addField(
             SelectAndCountModelField(
@@ -60,7 +64,7 @@ class OtherTask : ModelTask() {
                 listCreditOptions(),
                 "设置运行次数(-1为不限制)"
             ).also {
-                creditOptions = it
+                creditEventOptions = it
             })
 
         // 新增好家无忧卡开关
@@ -76,7 +80,7 @@ class OtherTask : ModelTask() {
     override suspend fun runSuspend() {
         try {
             if (credit2101!!.value) {
-                Credit2101.doCredit2101(autoOpenChest!!.value==true,creditOptions!!)
+                Credit2101.doCredit2101(credit2101OTaskOptions!!,creditEventOptions!!)
             }
             // 执行好家无忧卡任务
             if (haojiaWuyou!!.value) {

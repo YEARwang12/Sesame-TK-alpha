@@ -214,6 +214,7 @@ class AntForest : ModelTask(), EnergyCollectCallback {
      */
     private var energyBombCardType: ChoiceModelField? = null
     private var ecoDailyTask: BooleanModelField? = null // 7天环保打卡
+    private var gift7thSign: BooleanModelField? = null // 7天签到
 
     /**
      * 用户名缓存：userId -> userName 的映射
@@ -624,7 +625,7 @@ class AntForest : ModelTask(), EnergyCollectCallback {
 
         modelFields.addField(BooleanModelField("collectGiftBox", "领取礼盒", false).also { collectGiftBox = it })
         modelFields.addField(BooleanModelField("ecoDailyTask", "森林任务 | 环保打卡", false).also { ecoDailyTask = it })
-
+        modelFields.addField(BooleanModelField("gift7thSign", "森林7天签到 | 新用户", false).also { gift7thSign = it })
         modelFields.addField(BooleanModelField("medicalHealth", "健康医疗任务 | 开关", false).also { medicalHealth = it })
         modelFields.addField(
             SelectModelField(
@@ -884,6 +885,11 @@ class AntForest : ModelTask(), EnergyCollectCallback {
                         ?.optJSONObject("mainMember")
                 } else {
                     selfHomeObj
+                }
+
+                // 新用户7天签到
+                if (gift7thSign!!.value) {
+                    processGift7thSign()
                 }
 
                 if (collectWateringBubble!!.value) {
@@ -4510,6 +4516,41 @@ class AntForest : ModelTask(), EnergyCollectCallback {
             }
         } catch (e: Exception) {
             Log.printStackTrace(TAG, "collectSelfEnergyImmediately err", e)
+        }
+    }
+
+    private fun processGift7thSign() {
+        try {
+            val sceneCode = "ANTFOREST_GIFT7TH_SIGN_202506"
+            val s = AntForestRpcCall.queryCommonSign(sceneCode)
+            val jo = JSONObject(s)
+            if (ResChecker.checkRes(TAG + "查询7天签到失败:", jo)) {
+                val forestSignVO = jo.optJSONObject("forestSignVO") ?: return
+                val currentSignKey = forestSignVO.optString("currentSignKey")
+                val signRecords = forestSignVO.optJSONArray("signRecords") ?: return
+                var signed = false
+                for (i in 0 until signRecords.length()) {
+                    val record = signRecords.getJSONObject(i)
+                    if (record.optString("signKey") == currentSignKey) {
+                        signed = record.optBoolean("signed")
+                        break
+                    }
+                }
+                if (!signed) {
+                    val signRes = JSONObject(AntForestRpcCall.antiepSign(UserMap.currentUid, sceneCode))
+                    if (ResChecker.checkRes(TAG + "7天签到失败:", signRes)) {
+                        val awardName = signRes.optJSONObject("signModel")
+                            ?.optJSONObject("signAward")
+                            ?.optJSONObject("bizInfo")
+                            ?.optString("awardName", "奖励")
+                        Log.forest("7天签到📅[$awardName]")
+                    }
+                } else {
+                    Log.record(TAG, "7天签到📅已完成")
+                }
+            }
+        } catch (t: Throwable) {
+            Log.printStackTrace(TAG, "processGift7thSign err", t)
         }
     }
 
